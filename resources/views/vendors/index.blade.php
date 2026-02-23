@@ -13,53 +13,64 @@
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Name</th>
+                    <th>Restaurant</th>
+                    <th>Owner</th>
                     <th>Phone</th>
                     <th>City</th>
                     <th>Area</th>
                     <th>Status</th>
+                    <th>Active</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($vendors as $key => $vendor)
                 <tr>
-                    <td>{{ $key + 1 }}</td>
-                    <td>{{ $vendor->name }}</td>
+                    <td>{{ $vendors->firstItem() + $key }}</td>
+                    <td>{{ $vendor->restaurant_name ?? '-' }}</td>
+                    <td>{{ $vendor->full_name ?? '-' }}</td>
                     <td>{{ $vendor->phone }}</td>
                     <td>{{ $vendor->city->name_en ?? '-' }}</td>
                     <td>{{ $vendor->area->name_en ?? '-' }}</td>
                     <td>
-                        <span class="px-3 py-1 rounded-full text-white
-                            {{ $vendor->status == 'approved' ? 'bg-success' : ($vendor->status == 'pending' ? 'bg-warning' : 'bg-danger') }}">
+                        <span class="px-3 py-1 rounded-full text-white {{ $vendor->status == 'approved' ? 'bg-success' : ($vendor->status == 'pending' ? 'bg-warning' : 'bg-danger') }}">
                             {{ ucfirst($vendor->status) }}
                         </span>
                     </td>
-                    <td class="flex gap-2">
+                    <td>
+                        <span class="px-2 py-1 rounded-full text-white {{ $vendor->is_active ? 'bg-success' : 'bg-danger' }}">
+                            {{ $vendor->is_active ? 'Active' : 'Inactive' }}
+                        </span>
+                    </td>
+                    <td class="flex flex-wrap gap-2">
                         <a href="{{ route('vendors.show', $vendor->id) }}" class="btn btn-secondary">Show</a>
                         <a href="{{ route('vendors.edit', $vendor->id) }}" class="btn btn-info">Edit</a>
 
-                        @if($vendor->status === 'pending')
+                        @if($vendor->status !== 'approved')
                             <form action="{{ route('vendors.approve', $vendor->id) }}" method="POST" class="inline">
                                 @csrf
-                                <button type="submit" class="btn btn-success">Accept</button>
+                                <button type="submit" class="btn btn-success">Approve</button>
                             </form>
+                        @endif
 
+                        @if($vendor->status !== 'rejected')
                             <form action="{{ route('vendors.reject', $vendor->id) }}" method="POST" class="inline">
                                 @csrf
                                 <button type="submit" class="btn btn-danger">Reject</button>
                             </form>
                         @endif
 
-                        <form action="{{ route('vendors.toggleStatus', $vendor->id) }}" method="POST" class="inline">
-                            @csrf
-                            <button type="submit"
-                                class="btn {{ $vendor->is_active ? 'btn-success' : 'btn-danger' }}"
-                                onclick="return confirm('هل أنت متأكد من تغيير الحالة؟')">
-                                {{ $vendor->is_active ? 'Active ' : 'Disactive ' }}
-                            </button>
-                        </form>
-
+                        @if($vendor->status === 'approved')
+                            <form action="{{ route('vendors.toggleStatus', $vendor->id) }}" method="POST" class="inline">
+                                @csrf
+                                <button
+                                    type="submit"
+                                    class="btn {{ $vendor->is_active ? 'btn-success' : 'btn-danger' }}"
+                                    onclick="return confirm('Are you sure you want to change active status?')">
+                                    {{ $vendor->is_active ? 'Set Inactive' : 'Set Active' }}
+                                </button>
+                            </form>
+                        @endif
                     </td>
                 </tr>
                 @endforeach

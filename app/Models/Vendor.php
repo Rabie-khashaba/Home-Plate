@@ -4,8 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-
-use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 
 class Vendor extends Authenticatable
@@ -13,11 +11,33 @@ class Vendor extends Authenticatable
     use HasFactory , HasApiTokens;
 
     protected $fillable = [
-        'name', 'email', 'phone', 'password', 'city_id', 'area_id',
-        'logo', 'address', 'location', 'status', 'is_active'
+        'full_name',
+        'phone',
+        'email',
+        'password',
+        'id_front',
+        'id_back',
+        'restaurant_info',
+        'main_photo',
+        'restaurant_name',
+        'city_id',
+        'area_id',
+        'delivery_address',
+        'location',
+        'kitchen_photo_1',
+        'kitchen_photo_2',
+        'kitchen_photo_3',
+        'working_time',
+        'status',
+        'is_active',
     ];
 
     protected $hidden = ['password'];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'working_time' => 'array',
+    ];
 
     // 🔹 العلاقات
     public function city()

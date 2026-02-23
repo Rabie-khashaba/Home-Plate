@@ -2,48 +2,63 @@
 
 namespace App\Services;
 
-use App\Models\Delivery;
+use App\Models\Vendor;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
-class DeliveryAuthService
+class VendorAuthService
 {
-    private const REGISTER_PREFIX = 'delivery_auth:register:';
-    private const RESET_PREFIX = 'delivery_auth:reset:';
+    private const REGISTER_PREFIX = 'vendor_auth:register:';
+    private const RESET_PREFIX = 'vendor_auth:reset:';
     private const OTP_TTL_MINUTES = 10;
 
     public function __construct(
-        protected WhatsappService $whatsappService
+        private readonly WhatsappService $whatsappService
     ) {
     }
 
     public function startRegistration(array $data): array
     {
-        if (Delivery::where('phone', $data['phone'])->exists()) {
+        if (Vendor::where('phone', $data['phone'])->exists()) {
             throw ValidationException::withMessages([
                 'phone' => ['Phone already registered.'],
             ]);
         }
 
-        $otp = $this->generateOtp();
-        $cacheKey = $this->registerKey($data['phone']);
+        $data = $this->storeRegisterFiles($data);
 
-        Cache::put($cacheKey, [
+        $otp = $this->generateOtp();
+
+        // Keep password plain in cache because Vendor model hashes via mutator.
+        Cache::put($this->registerKey($data['phone']), [
             'otp_hash' => Hash::make($otp),
             'payload' => [
-                'first_name' => $data['first_name'],
+                'full_name' => $data['full_name'],
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'],
-                'password' => Hash::make($data['password']),
+                'password' => $data['password'],
+                'id_front' => $data['id_front'] ?? null,
+                'id_back' => $data['id_back'] ?? null,
+                'restaurant_info' => $data['restaurant_info'] ?? null,
+                'main_photo' => $data['main_photo'] ?? null,
+                'restaurant_name' => $data['restaurant_name'],
                 'city_id' => $data['city_id'],
                 'area_id' => $data['area_id'],
-                'is_active' => true,
-                'status' => $data['status'] ?? 'pending',
+                'delivery_address' => $data['delivery_address'],
+                'location' => $data['location'] ?? null,
+                'kitchen_photo_1' => $data['kitchen_photo_1'] ?? null,
+                'kitchen_photo_2' => $data['kitchen_photo_2'] ?? null,
+                'kitchen_photo_3' => $data['kitchen_photo_3'] ?? null,
+                'working_time' => isset($data['working_time']) ? json_encode($data['working_time']) : null,
+                'is_active' => false,
+                'status' => 'pending',
             ],
         ], now()->addMinutes(self::OTP_TTL_MINUTES));
 
-        $this->sendOtpOrFail($data['phone'], $otp, 'register');
+        $this->sendOtpOrFail($data['phone'], $otp, 'vendor_register');
 
         return [
             'message' => 'OTP sent to WhatsApp for registration.',
@@ -67,7 +82,7 @@ class DeliveryAuthService
             ]);
         }
 
-        if (Delivery::where('phone', $phone)->exists()) {
+        if (Vendor::where('phone', $phone)->exists()) {
             Cache::forget($this->registerKey($phone));
 
             throw ValidationException::withMessages([
@@ -75,48 +90,54 @@ class DeliveryAuthService
             ]);
         }
 
-        $delivery = Delivery::create($cached['payload']);
+        $payload = $cached['payload'];
+
+        if (isset($payload['working_time']) && is_array($payload['working_time'])) {
+            $payload['working_time'] = json_encode($payload['working_time']);
+        }
+
+        $vendor = Vendor::create($payload);
         Cache::forget($this->registerKey($phone));
 
-        $token = $delivery->createToken('delivery_token')->plainTextToken;
+        $token = $vendor->createToken('vendor_token')->plainTextToken;
 
         return [
-            'message' => 'Delivery account created successfully.',
-            'delivery' => $delivery,
+            'message' => 'Vendor account created successfully.',
+            'vendor' => $vendor,
             'token' => $token,
         ];
     }
 
     public function login(string $phone, string $password): array
     {
-        $delivery = Delivery::where('phone', $phone)->first();
+        $vendor = Vendor::where('phone', $phone)->first();
 
-        if (! $delivery || ! Hash::check($password, $delivery->password)) {
+        if (! $vendor || ! Hash::check($password, $vendor->password)) {
             throw ValidationException::withMessages([
                 'phone' => ['Invalid phone or password.'],
             ]);
         }
 
-        if (! $delivery->is_active) {
-            throw ValidationException::withMessages([
-                'phone' => ['Account is not active.'],
-            ]);
-        }
+        // if (! $vendor->is_active) {
+        //     throw ValidationException::withMessages([
+        //         'phone' => ['Vendor account is not active.'],
+        //     ]);
+        // }
 
-        $token = $delivery->createToken('delivery_token')->plainTextToken;
+        $token = $vendor->createToken('vendor_token')->plainTextToken;
 
         return [
             'message' => 'Login successful.',
-            'delivery' => $delivery,
+            'vendor' => $vendor,
             'token' => $token,
         ];
     }
 
     public function sendForgotPasswordOtp(string $phone): array
     {
-        $delivery = Delivery::where('phone', $phone)->first();
+        $vendor = Vendor::where('phone', $phone)->first();
 
-        if (! $delivery) {
+        if (! $vendor) {
             throw ValidationException::withMessages([
                 'phone' => ['Phone is not registered.'],
             ]);
@@ -128,7 +149,7 @@ class DeliveryAuthService
             'otp_hash' => Hash::make($otp),
         ], now()->addMinutes(self::OTP_TTL_MINUTES));
 
-        $this->sendOtpOrFail($phone, $otp, 'reset_password');
+        $this->sendOtpOrFail($phone, $otp, 'vendor_reset_password');
 
         return [
             'message' => 'OTP sent to WhatsApp for password reset.',
@@ -138,9 +159,9 @@ class DeliveryAuthService
 
     public function resetPassword(string $phone, string $otp, string $password): array
     {
-        $delivery = Delivery::where('phone', $phone)->first();
+        $vendor = Vendor::where('phone', $phone)->first();
 
-        if (! $delivery) {
+        if (! $vendor) {
             throw ValidationException::withMessages([
                 'phone' => ['Phone is not registered.'],
             ]);
@@ -160,8 +181,9 @@ class DeliveryAuthService
             ]);
         }
 
-        $delivery->password = Hash::make($password);
-        $delivery->save();
+        // Vendor model hashes via mutator.
+        $vendor->password = $password;
+        $vendor->save();
 
         Cache::forget($this->resetKey($phone));
 
@@ -184,7 +206,7 @@ class DeliveryAuthService
 
     private function generateOtp(): string
     {
-        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        return str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     }
 
     private function registerKey(string $phone): string
@@ -195,5 +217,34 @@ class DeliveryAuthService
     private function resetKey(string $phone): string
     {
         return self::RESET_PREFIX.$phone;
+    }
+
+    private function storeRegisterFiles(array $data): array
+    {
+        foreach ($this->registerFileFields() as $field) {
+            if (isset($data[$field]) && $data[$field] instanceof UploadedFile) {
+                $file = $data[$field];
+                $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                $safeName = Str::slug($originalName) ?: $field;
+                $extension = $file->getClientOriginalExtension();
+                $fileName = $safeName . '-' . now()->format('YmdHis') . '-' . Str::random(6) . '.' . $extension;
+
+                $data[$field] = $file->storeAs("vendors/register/{$field}", $fileName, 'public');
+            }
+        }
+
+        return $data;
+    }
+
+    private function registerFileFields(): array
+    {
+        return [
+            'id_front',
+            'id_back',
+            'main_photo',
+            'kitchen_photo_1',
+            'kitchen_photo_2',
+            'kitchen_photo_3',
+        ];
     }
 }

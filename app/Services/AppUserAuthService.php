@@ -2,48 +2,50 @@
 
 namespace App\Services;
 
-use App\Models\Delivery;
+use App\Models\AppUser;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
-class DeliveryAuthService
+class AppUserAuthService
 {
-    private const REGISTER_PREFIX = 'delivery_auth:register:';
-    private const RESET_PREFIX = 'delivery_auth:reset:';
+    private const REGISTER_PREFIX = 'app_user_auth:register:';
+    private const RESET_PREFIX = 'app_user_auth:reset:';
     private const OTP_TTL_MINUTES = 10;
 
     public function __construct(
-        protected WhatsappService $whatsappService
+        private readonly WhatsappService $whatsappService
     ) {
     }
 
     public function startRegistration(array $data): array
     {
-        if (Delivery::where('phone', $data['phone'])->exists()) {
+        if (AppUser::where('phone', $data['phone'])->exists()) {
             throw ValidationException::withMessages([
                 'phone' => ['Phone already registered.'],
             ]);
         }
 
         $otp = $this->generateOtp();
-        $cacheKey = $this->registerKey($data['phone']);
 
-        Cache::put($cacheKey, [
+        Cache::put($this->registerKey($data['phone']), [
             'otp_hash' => Hash::make($otp),
             'payload' => [
-                'first_name' => $data['first_name'],
+                'name' => $data['name'],
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'],
                 'password' => Hash::make($data['password']),
+                'gender' => $data['gender'] ?? null,
+                'dob' => $data['dob'] ?? null,
                 'city_id' => $data['city_id'],
                 'area_id' => $data['area_id'],
+                'delivery_addresses' => $data['delivery_addresses'] ?? null,
+                'location' => $data['location'] ?? null,
                 'is_active' => true,
-                'status' => $data['status'] ?? 'pending',
             ],
         ], now()->addMinutes(self::OTP_TTL_MINUTES));
 
-        $this->sendOtpOrFail($data['phone'], $otp, 'register');
+        $this->sendOtpOrFail($data['phone'], $otp, 'app_user_register');
 
         return [
             'message' => 'OTP sent to WhatsApp for registration.',
@@ -67,7 +69,7 @@ class DeliveryAuthService
             ]);
         }
 
-        if (Delivery::where('phone', $phone)->exists()) {
+        if (AppUser::where('phone', $phone)->exists()) {
             Cache::forget($this->registerKey($phone));
 
             throw ValidationException::withMessages([
@@ -75,48 +77,48 @@ class DeliveryAuthService
             ]);
         }
 
-        $delivery = Delivery::create($cached['payload']);
+        $appUser = AppUser::create($cached['payload']);
         Cache::forget($this->registerKey($phone));
 
-        $token = $delivery->createToken('delivery_token')->plainTextToken;
+        $token = $appUser->createToken('app_user_token')->plainTextToken;
 
         return [
-            'message' => 'Delivery account created successfully.',
-            'delivery' => $delivery,
+            'message' => 'App user account created successfully.',
+            'user' => $appUser,
             'token' => $token,
         ];
     }
 
     public function login(string $phone, string $password): array
     {
-        $delivery = Delivery::where('phone', $phone)->first();
+        $appUser = AppUser::where('phone', $phone)->first();
 
-        if (! $delivery || ! Hash::check($password, $delivery->password)) {
+        if (! $appUser || ! Hash::check($password, $appUser->password)) {
             throw ValidationException::withMessages([
                 'phone' => ['Invalid phone or password.'],
             ]);
         }
 
-        if (! $delivery->is_active) {
+        if (! $appUser->is_active) {
             throw ValidationException::withMessages([
                 'phone' => ['Account is not active.'],
             ]);
         }
 
-        $token = $delivery->createToken('delivery_token')->plainTextToken;
+        $token = $appUser->createToken('app_user_token')->plainTextToken;
 
         return [
             'message' => 'Login successful.',
-            'delivery' => $delivery,
+            'user' => $appUser,
             'token' => $token,
         ];
     }
 
     public function sendForgotPasswordOtp(string $phone): array
     {
-        $delivery = Delivery::where('phone', $phone)->first();
+        $appUser = AppUser::where('phone', $phone)->first();
 
-        if (! $delivery) {
+        if (! $appUser) {
             throw ValidationException::withMessages([
                 'phone' => ['Phone is not registered.'],
             ]);
@@ -128,7 +130,7 @@ class DeliveryAuthService
             'otp_hash' => Hash::make($otp),
         ], now()->addMinutes(self::OTP_TTL_MINUTES));
 
-        $this->sendOtpOrFail($phone, $otp, 'reset_password');
+        $this->sendOtpOrFail($phone, $otp, 'app_user_reset_password');
 
         return [
             'message' => 'OTP sent to WhatsApp for password reset.',
@@ -138,9 +140,9 @@ class DeliveryAuthService
 
     public function resetPassword(string $phone, string $otp, string $password): array
     {
-        $delivery = Delivery::where('phone', $phone)->first();
+        $appUser = AppUser::where('phone', $phone)->first();
 
-        if (! $delivery) {
+        if (! $appUser) {
             throw ValidationException::withMessages([
                 'phone' => ['Phone is not registered.'],
             ]);
@@ -160,8 +162,8 @@ class DeliveryAuthService
             ]);
         }
 
-        $delivery->password = Hash::make($password);
-        $delivery->save();
+        $appUser->password = Hash::make($password);
+        $appUser->save();
 
         Cache::forget($this->resetKey($phone));
 
