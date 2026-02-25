@@ -1,0 +1,24 @@
+[21-Oct-2025 12:56:28 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:28 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:28 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home/homeplate/public_html/../vendor/autoload.php' (include_path='.:/opt/alt/php82/usr/share/pear:/opt/alt/php82/usr/share/php:/usr/share/pear:/usr/share/php') in /home/homeplate/public_html/index.php:34
+Stack trace:
+#0 {main}
+  thrown in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:31 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:31 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:31 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home/homeplate/public_html/../vendor/autoload.php' (include_path='.:/opt/alt/php82/usr/share/pear:/opt/alt/php82/usr/share/php:/usr/share/pear:/usr/share/php') in /home/homeplate/public_html/index.php:34
+Stack trace:
+#0 {main}
+  thrown in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:40 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:40 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:40 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home/homeplate/public_html/../vendor/autoload.php' (include_path='.:/opt/alt/php82/usr/share/pear:/opt/alt/php82/usr/share/php:/usr/share/pear:/usr/share/php') in /home/homeplate/public_html/index.php:34
+Stack trace:
+#0 {main}
+  thrown in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:40 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:40 UTC] PHP Warning:  require(/home/homeplate/public_html/../vendor/autoload.php): Failed to open stream: No such file or directory in /home/homeplate/public_html/index.php on line 34
+[21-Oct-2025 12:56:40 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home/homeplate/public_html/../vendor/autoload.php' (include_path='.:/opt/alt/php82/usr/share/pear:/opt/alt/php82/usr/share/php:/usr/share/pear:/usr/share/php') in /home/homeplate/public_html/index.php:34
+Stack trace:
+#0 {main}
+  thrown in /home/homeplate/public_html/index.php on line 34
