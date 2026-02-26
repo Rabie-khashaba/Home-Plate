@@ -68,9 +68,16 @@ class VendorAuthController extends Controller
     {
         $data = $request->validated();
 
-        return response()->json(
-            $this->vendorAuthService->verifyForgotPasswordOtp($data['phone'], $data['otp'])
-        );
+        try {
+            return response()->json(
+                $this->vendorAuthService->verifyForgotPasswordOtp($data['phone'], $data['otp'])
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'OTP verification failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
     }
 
     public function resetPassword(VendorAuthRequest $request)

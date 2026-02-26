@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AppUserAuthController;
 use App\Http\Controllers\Api\DeliveryAuthController;
 use App\Http\Controllers\Api\VendorAuthController;
+use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\AppUserStatusController;
 use App\Http\Controllers\Api\DeliveryStatusController;
 use App\Http\Controllers\Api\VendorStatusController;
@@ -80,6 +81,20 @@ Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('items')->group(function () {
+        Route::get('/', [ItemController::class, 'index']);
+        Route::post('/{id}/approve', [ItemController::class, 'approve']);
+        Route::post('/{id}/reject', [ItemController::class, 'reject']);
+    });
+
+    Route::prefix('vendor/items')->group(function () {
+        Route::get('/', [ItemController::class, 'vendorIndex']);
+        Route::post('/', [ItemController::class, 'store']);
+        Route::post('/{id}', [ItemController::class, 'update']);
+        Route::post('/{id}/publish', [ItemController::class, 'publish']);
+        Route::post('/{id}/pause', [ItemController::class, 'pause']);
+    });
+
     Route::prefix('vendor')->group(function () {
         Route::post('/{id}/status/pending', [VendorStatusController::class, 'setPending']);
         Route::post('/{id}/status/approved', [VendorStatusController::class, 'approve']);

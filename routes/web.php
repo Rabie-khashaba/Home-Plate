@@ -13,6 +13,7 @@ use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\AppUserController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\ItemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,9 +52,7 @@ Route::get('/', function () {
             Route::resource('admins', AdminController::class);
             Route::resource('roles', RoleController::class);
             
-            
-            
-             Route::prefix('app_users')->name('app_users.')->group(function(){
+            Route::prefix('app_users')->name('app_users.')->group(function(){
             Route::get('/', [AppUserController::class, 'index'])->name('index');
             Route::get('create', [AppUserController::class, 'create'])->name('create');
             Route::post('store', [AppUserController::class, 'store'])->name('store');
@@ -93,18 +92,23 @@ Route::get('/', function () {
             // toggle active (post)
             Route::post('{delivery}/toggle', [DeliveryController::class, 'toggleStatus'])->name('toggleStatus');
             // approve / reject
-            Route::post('{delivery}/approve', [DeliveryController::class, 'approve'])->name('approve');
+        Route::post('{delivery}/approve', [DeliveryController::class, 'approve'])->name('approve');
         Route::post('{delivery}/reject', [DeliveryController::class, 'reject'])->name('reject');
     });
 
-    
+    Route::prefix('items')->name('items.')->group(function () {
+        Route::get('/', [ItemController::class, 'index'])->name('index');
+        Route::get('create', [ItemController::class, 'create'])->name('create');
+        Route::post('store', [ItemController::class, 'store'])->name('store');
+        Route::get('{item}', [ItemController::class, 'show'])->name('show');
+        Route::get('{item}/edit', [ItemController::class, 'edit'])->name('edit');
+        Route::put('{item}', [ItemController::class, 'update'])->name('update');
+        Route::delete('{item}', [ItemController::class, 'destroy'])->name('destroy');
+        Route::post('{item}/approve', [ItemController::class, 'approve'])->name('approve');
+        Route::post('{item}/reject', [ItemController::class, 'reject'])->name('reject');
     });
-    
-    
-   
 
-
-
+});
 
 
 require __DIR__.'/auth.php';

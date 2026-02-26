@@ -14,4 +14,9 @@ class Category extends Model
         'name_ar',
         'photo',
     ];
+
+    public function items()
+    {
+        return $this->hasMany(Item::class);
+    }
 }

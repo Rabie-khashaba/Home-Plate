@@ -54,7 +54,11 @@ class Vendor extends Authenticatable
         return $this->belongsTo(Area::class);
     }
 
-
+    public function items()
+    {
+        return $this->hasMany(Item::class);
+    }
+    
         // 🔹 التشفير
     public function setPasswordAttribute($value)
     {

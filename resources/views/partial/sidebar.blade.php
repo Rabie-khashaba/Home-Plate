@@ -77,8 +77,8 @@
                                     </button>
 
                                     <ul x-show="activeDropdown === 'items'" x-collapse class="sub-menu text-gray-500 ml-6">
-                                        <li><a href="#">Requests </a></li>
-                                        <li><a href="#">All Items</a></li>
+                                        <li><a href="{{ route('items.index', ['approval_status' => 'pending']) }}">Requests </a></li>
+                                        <li><a href="{{ route('items.index' , ['approval_status' => 'pending']) }}">All Items</a></li>
                                     </ul>
                                 </li>
 

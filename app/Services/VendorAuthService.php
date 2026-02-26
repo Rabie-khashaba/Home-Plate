@@ -200,13 +200,21 @@ class VendorAuthService
         ]);
     }
 
-    public function verifyForgotPasswordOtp(string $phone, string $otp): array
+    public function verifyForgotPasswordOtp(string $phone, ?string $otp): array
     {
+
+
         $vendor = Vendor::where('phone', $phone)->first();
 
         if (! $vendor) {
             throw ValidationException::withMessages([
                 'phone' => ['Phone is not registered.'],
+            ]);
+        }
+
+        if (! $otp) {
+            throw ValidationException::withMessages([
+                'otp' => ['Invalid OTP.'],
             ]);
         }
 
@@ -218,6 +226,7 @@ class VendorAuthService
             'message' => 'OTP verified successfully.',
         ];
     }
+
 
     public function resetPassword(string $phone, string $password): array
     {
@@ -304,9 +313,15 @@ class VendorAuthService
 
     private function assertValidOtp(Vendor $vendor, string $otp): void
     {
+        if (! $vendor->otp_code) {
+            throw ValidationException::withMessages([
+                'otp' => ['OTP not found. Please request a new OTP.'],
+            ]);
+        }
+
         if ($vendor->otp_code !== $otp) {
             throw ValidationException::withMessages([
-                'otp' => ['Invalid OTP.'],
+                'otp' => ['OTP value not found.'],
             ]);
         }
 
