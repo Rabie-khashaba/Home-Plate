@@ -85,10 +85,10 @@
 
                                 <!-- ORDERS -->
                                 <li class="menu nav-item">
-                                    <a href="#"
+                                    <a href="{{ route('orders.index') }}"
                                     @class([
                                         'nav-link group flex w-full items-center justify-start dark:text-[#506690] hover:text-primary',
-                                        'active' => request()->routeIs('app_users.*')
+                                        'active' => request()->routeIs('orders.*')
                                     ])>
                                         <div class="flex items-center">
                                             <span class="ltr:pl-3 rtl:pr-3">Orders</span>

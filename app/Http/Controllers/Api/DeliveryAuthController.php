@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\DeliveryAuthRequest;
 use App\Services\DeliveryAuthService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -14,43 +15,44 @@ class DeliveryAuthController extends Controller
     ) {
     }
 
-    public function register(Request $request)
+    public function register(DeliveryAuthRequest $request)
     {
-        $data = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'required|string|max:30',
-            'password' => 'required|string|min:6|confirmed',
-            'city_id' => 'required|exists:cities,id',
-            'area_id' => 'required|exists:areas,id',
-        ]);
+        $data = $request->validated();
 
-        $response = $this->deliveryAuthService->startRegistration($data);
+        try {
+            $response = $this->deliveryAuthService->startRegistration($data);
 
-        return response()->json($response, 200);
+            return response()->json($response, 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Registration failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
     }
 
-    public function verifyRegisterOtp(Request $request)
+    public function verifyRegisterOtp(DeliveryAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'otp' => 'required|string|size:6',
-        ]);
+        $data = $request->validated();
 
-        $response = $this->deliveryAuthService->verifyRegistrationOtp(
-            $data['phone'],
-            $data['otp']
-        );
+        try {
+            $response = $this->deliveryAuthService->verifyRegistrationOtp(
+                $data['phone'],
+                $data['otp']
+            );
 
-        return response()->json($response, 201);
+            return response()->json($response, 201);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'OTP verification failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
     }
 
-    public function login(Request $request)
+    public function login(DeliveryAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'password' => 'required|string',
-        ]);
+        $data = $request->validated();
 
         try {
             $response = $this->deliveryAuthService->login($data['phone'], $data['password']);
@@ -64,49 +66,46 @@ class DeliveryAuthController extends Controller
         }
     }
 
-    public function forgotPassword(Request $request)
+    public function forgotPassword(DeliveryAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-        ]);
+        $data = $request->validated();
 
         $response = $this->deliveryAuthService->sendForgotPasswordOtp($data['phone']);
 
         return response()->json($response);
     }
 
-    public function resendOtp(Request $request)
+    public function resendOtp(DeliveryAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-        ]);
+        $data = $request->validated();
 
         $response = $this->deliveryAuthService->resendOtp($data['phone']);
 
         return response()->json($response);
     }
 
-    public function verifyForgotPasswordOtp(Request $request)
+    public function verifyForgotPasswordOtp(DeliveryAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'otp' => 'required|string|size:6',
-        ]);
+        $data = $request->validated();
 
-        $response = $this->deliveryAuthService->verifyForgotPasswordOtp(
-            $data['phone'],
-            $data['otp']
-        );
+        try {
+            $response = $this->deliveryAuthService->verifyForgotPasswordOtp(
+                $data['phone'],
+                $data['otp']
+            );
 
-        return response()->json($response);
+            return response()->json($response);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'OTP verification failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
     }
 
-    public function resetPassword(Request $request)
+    public function resetPassword(DeliveryAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'password' => 'required|string|min:6|confirmed',
-        ]);
+        $data = $request->validated();
 
         $response = $this->deliveryAuthService->resetPassword(
             $data['phone'],

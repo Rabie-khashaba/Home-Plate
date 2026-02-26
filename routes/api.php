@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\DeliveryStatusController;
 use App\Http\Controllers\Api\VendorStatusController;
 use App\Http\Controllers\Api\GeneralRequestController;
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
+use App\Http\Controllers\Api\OrderController as ApiOrderController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -81,6 +82,27 @@ Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('orders')->group(function () {
+        Route::post('/', [ApiOrderController::class, 'store']); // app user creates order (includes item_id)
+        Route::get('/my', [ApiOrderController::class, 'myOrders']);
+        Route::get('/{id}', [ApiOrderController::class, 'show']);
+    });
+
+    Route::prefix('vendor/orders')->group(function () {
+        Route::get('/', [ApiOrderController::class, 'myOrders']);
+        Route::post('/{id}/start-cooking', [ApiOrderController::class, 'vendorStartCooking']);
+        Route::post('/{id}/ready-for-pickup', [ApiOrderController::class, 'vendorReadyForPickup']);
+        Route::post('/{id}/confirm-handover', [ApiOrderController::class, 'vendorConfirmHandover']);
+    });
+
+    Route::prefix('delivery/orders')->group(function () {
+        Route::get('/available', [ApiOrderController::class, 'deliveryAvailable']);
+        Route::post('/{id}/accept', [ApiOrderController::class, 'deliveryAccept']);
+        Route::post('/{id}/confirm-pickup', [ApiOrderController::class, 'deliveryConfirmPickup']);  // vendor
+        Route::post('/{id}/out-for-delivery', [ApiOrderController::class, 'deliveryMarkOutForDelivery']);
+        Route::post('/{id}/verify-pin', [ApiOrderController::class, 'deliveryVerifyPinAndComplete']);   // user
+    });
+
     Route::prefix('items')->group(function () {
         Route::get('/', [ItemController::class, 'index']);
         Route::post('/{id}/approve', [ItemController::class, 'approve']);

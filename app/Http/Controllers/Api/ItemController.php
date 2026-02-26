@@ -15,15 +15,16 @@ class ItemController extends Controller
 {
     public function index(Request $request)
     {
-        $this->ensureAdmin($request);
-
-        $items = Item::with(['vendor', 'category'])->latest()->paginate(20);
+        $items = Item::with(['vendor', 'category'])
+            ->where('approval_status', 'approved')
+            ->latest()
+            ->get();
 
         return response()->json([
-            'message' => 'Items fetched successfully.',
-            'data' => $items->through(function (Item $item) {
+            'message' => $items->isEmpty() ? 'No items found.' : 'Items fetched successfully.',
+            'data' => $items->map(function (Item $item) {
                 return $this->withImageUrls($item);
-            }),
+            })->values(),
         ]);
     }
 
@@ -34,13 +35,13 @@ class ItemController extends Controller
         $items = Item::with(['vendor', 'category'])
             ->where('vendor_id', $vendor->id)
             ->latest()
-            ->paginate(20);
+            ->get();
 
         return response()->json([
-            'message' => 'Vendor items fetched successfully.',
-            'data' => $items->through(function (Item $item) {
+            'message' => $items->isEmpty() ? 'No vendor items found.' : 'Vendor items fetched successfully.',
+            'data' => $items->map(function (Item $item) {
                 return $this->withImageUrls($item);
-            }),
+            })->values(),
         ]);
     }
 

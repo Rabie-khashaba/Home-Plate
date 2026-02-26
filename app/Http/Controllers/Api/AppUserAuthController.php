@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\AppUserAuthRequest;
 use App\Services\AppUserAuthService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -14,43 +15,40 @@ class AppUserAuthController extends Controller
     ) {
     }
 
-    public function register(Request $request)
+    public function register(AppUserAuthRequest $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'required|string|max:30',
-            'password' => 'required|string|min:6|confirmed',
-            'gender' => 'nullable|in:male,female',
-            'dob' => 'nullable|date',
-            'city_id' => 'required|exists:cities,id',
-            'area_id' => 'required|exists:areas,id',
-            'delivery_addresses' => 'nullable|string',
-            'location' => 'nullable|string',
-        ]);
+        $data = $request->validated();
 
-        return response()->json($this->appUserAuthService->startRegistration($data));
+        try {
+            return response()->json($this->appUserAuthService->startRegistration($data));
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Registration failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
     }
 
-    public function verifyRegisterOtp(Request $request)
+    public function verifyRegisterOtp(AppUserAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'otp' => 'required|string|size:6',
-        ]);
+        $data = $request->validated();
 
-        return response()->json(
-            $this->appUserAuthService->verifyRegistrationOtp($data['phone'], $data['otp']),
-            201
-        );
+        try {
+            return response()->json(
+                $this->appUserAuthService->verifyRegistrationOtp($data['phone'], $data['otp']),
+                201
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'OTP verification failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
     }
 
-    public function login(Request $request)
+    public function login(AppUserAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'password' => 'required|string',
-        ]);
+        $data = $request->validated();
 
         try {
             return response()->json(
@@ -64,46 +62,43 @@ class AppUserAuthController extends Controller
         }
     }
 
-    public function forgotPassword(Request $request)
+    public function forgotPassword(AppUserAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-        ]);
+        $data = $request->validated();
 
         return response()->json(
             $this->appUserAuthService->sendForgotPasswordOtp($data['phone'])
         );
     }
 
-    public function resendOtp(Request $request)
+    public function resendOtp(AppUserAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-        ]);
+        $data = $request->validated();
 
         return response()->json(
             $this->appUserAuthService->resendOtp($data['phone'])
         );
     }
 
-    public function verifyForgotPasswordOtp(Request $request)
+    public function verifyForgotPasswordOtp(AppUserAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'otp' => 'required|string|size:6',
-        ]);
+        $data = $request->validated();
 
-        return response()->json(
-            $this->appUserAuthService->verifyForgotPasswordOtp($data['phone'], $data['otp'])
-        );
+        try {
+            return response()->json(
+                $this->appUserAuthService->verifyForgotPasswordOtp($data['phone'], $data['otp'])
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'OTP verification failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
     }
 
-    public function resetPassword(Request $request)
+    public function resetPassword(AppUserAuthRequest $request)
     {
-        $data = $request->validate([
-            'phone' => 'required|string|max:30',
-            'password' => 'required|string|min:6|confirmed',
-        ]);
+        $data = $request->validated();
 
         return response()->json(
             $this->appUserAuthService->resetPassword($data['phone'], $data['password'])

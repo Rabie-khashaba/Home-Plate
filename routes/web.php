@@ -14,6 +14,7 @@ use App\Http\Controllers\AppUserController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\ItemController;
+use App\Http\Controllers\OrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -106,6 +107,13 @@ Route::get('/', function () {
         Route::delete('{item}', [ItemController::class, 'destroy'])->name('destroy');
         Route::post('{item}/approve', [ItemController::class, 'approve'])->name('approve');
         Route::post('{item}/reject', [ItemController::class, 'reject'])->name('reject');
+    });
+
+    Route::prefix('orders')->name('orders.')->group(function () {
+        Route::get('/', [OrderController::class, 'index'])->name('index');
+        Route::get('{order}/edit', [OrderController::class, 'edit'])->name('edit');
+        Route::put('{order}', [OrderController::class, 'update'])->name('update');
+        Route::get('{order}', [OrderController::class, 'show'])->name('show');
     });
 
 });
