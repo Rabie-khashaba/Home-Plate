@@ -15,7 +15,10 @@ class ItemController extends Controller
 {
     public function index(Request $request)
     {
+        $vendor = $this->ensureVendor($request);
+
         $items = Item::with(['vendor', 'category'])
+            ->where('vendor_id', $vendor->id)
             ->where('approval_status', 'approved')
             ->latest()
             ->get();
@@ -28,22 +31,23 @@ class ItemController extends Controller
         ]);
     }
 
-    public function vendorIndex(Request $request)
-    {
-        $vendor = $this->ensureVendor($request);
+    // public function vendorIndex(Request $request)
+    // {
+    //     $vendor = $this->ensureVendor($request);
 
-        $items = Item::with(['vendor', 'category'])
-            ->where('vendor_id', $vendor->id)
-            ->latest()
-            ->get();
+    //     $items = Item::with(['vendor', 'category'])
+    //         ->where('vendor_id', $vendor->id)
+    //         ->where('approval_status', 'approved')
+    //         ->latest()
+    //         ->get();
 
-        return response()->json([
-            'message' => $items->isEmpty() ? 'No vendor items found.' : 'Vendor items fetched successfully.',
-            'data' => $items->map(function (Item $item) {
-                return $this->withImageUrls($item);
-            })->values(),
-        ]);
-    }
+    //     return response()->json([
+    //         'message' => $items->isEmpty() ? 'No vendor items found.' : 'Vendor items fetched successfully.',
+    //         'data' => $items->map(function (Item $item) {
+    //             return $this->withImageUrls($item);
+    //         })->values(),
+    //     ]);
+    // }
 
     public function store(Request $request)
     {
