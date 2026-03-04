@@ -111,6 +111,8 @@ Route::get('/', function () {
 
     Route::prefix('orders')->name('orders.')->group(function () {
         Route::get('/', [OrderController::class, 'index'])->name('index');
+        Route::get('create', [OrderController::class, 'create'])->name('create');
+        Route::post('store', [OrderController::class, 'store'])->name('store');
         Route::get('{order}/edit', [OrderController::class, 'edit'])->name('edit');
         Route::put('{order}', [OrderController::class, 'update'])->name('update');
         Route::get('{order}', [OrderController::class, 'show'])->name('show');

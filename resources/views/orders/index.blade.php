@@ -5,6 +5,7 @@
 <div class="panel">
     <div class="mb-5 flex items-center justify-between">
         <h5 class="text-lg font-semibold dark:text-white-light">Orders</h5>
+        <a href="{{ route('orders.create') }}" class="btn btn-primary">Create Order</a>
     </div>
 
     <form method="GET" class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">

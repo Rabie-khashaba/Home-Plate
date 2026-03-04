@@ -2,11 +2,46 @@
 @section('title', 'Edit Vendor')
 
 @section('content')
+@php
+    $workingDays = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+    $workingTime = old('working_time', $vendor->working_time);
+
+    if (! is_array($workingTime)) {
+        $workingTime = json_decode($workingTime ?? '', true) ?: [];
+    }
+
+    if (isset($workingTime['day'])) {
+        $workingTime = [$workingTime];
+    }
+
+    $workingTimeMap = [];
+    foreach ($workingTime as $slot) {
+        if (! is_array($slot) || empty($slot['day'])) {
+            continue;
+        }
+
+        $workingTimeMap[$slot['day']] = [
+            'enabled' => true,
+            'from' => ! empty($slot['from']) ? \Illuminate\Support\Carbon::createFromFormat('g:i A', $slot['from'])->format('H:i') : '',
+            'to' => ! empty($slot['to']) ? \Illuminate\Support\Carbon::createFromFormat('g:i A', $slot['to'])->format('H:i') : '',
+        ];
+    }
+@endphp
 <div class="panel">
     <div class="flex items-center justify-between mb-5">
         <h5 class="font-semibold text-lg dark:text-white-light">Edit Vendor</h5>
         <a href="{{ route('vendors.index') }}" class="btn btn-secondary">Back</a>
     </div>
+
+    @if ($errors->any())
+        <div class="mb-4 rounded border border-danger p-3 text-danger">
+            <ul class="list-disc pl-5">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <form method="POST" action="{{ route('vendors.update', $vendor->id) }}" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-5">
         @csrf
@@ -32,9 +67,53 @@
             <input type="text" name="restaurant_name" value="{{ old('restaurant_name', $vendor->restaurant_name) }}" class="form-input" required />
         </div>
 
-        <div>
-            <label>Working Time</label>
-            <input type="text" name="working_time" value="{{ old('working_time', $vendor->working_time) }}" class="form-input" />
+        <div class="md:col-span-2">
+            <div class="mb-3">
+                <label class="mb-1 block text-base font-semibold">Working Schedule</label>
+                <p class="text-sm text-gray-500">Enable the days the vendor works, then set opening and closing time for each one.</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4 rounded-xl border border-[#e0e6ed] bg-[#f8fafc] p-4 lg:grid-cols-3 dark:border-[#1b2e4b] dark:bg-[#0e1726]">
+                @foreach ($workingDays as $day)
+                    @php
+                        $dayState = old("working_time.$day", $workingTimeMap[$day] ?? []);
+                    @endphp
+                    <div class="working-day-row rounded-xl border border-transparent bg-white p-4 shadow-sm transition dark:bg-[#132136]" data-day-row>
+                        <div class="flex flex-col gap-3">
+                            <div>
+                                <label class="flex cursor-pointer items-center gap-3">
+                                    <input
+                                        type="checkbox"
+                                        name="working_time[{{ $day }}][enabled]"
+                                        value="1"
+                                        class="working-day-toggle h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                        {{ ! empty($dayState['enabled']) ? 'checked' : '' }}
+                                    >
+                                    <div>
+                                        <span class="block font-semibold text-[#3b3f5c] dark:text-white-light">{{ ucfirst($day) }}</span>
+                                        <span class="text-xs text-gray-500">Available for orders</span>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">From</label>
+                                    <input type="time" name="working_time[{{ $day }}][from]" value="{{ $dayState['from'] ?? '' }}" class="form-input working-time-input" />
+                                    @error("working_time.$day.from")
+                                        <small class="mt-1 block text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">To</label>
+                                    <input type="time" name="working_time[{{ $day }}][to]" value="{{ $dayState['to'] ?? '' }}" class="form-input working-time-input" />
+                                    @error("working_time.$day.to")
+                                        <small class="mt-1 block text-danger">{{ $message }}</small>
+                                    @enderror
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
         </div>
 
         <div>
@@ -141,4 +220,28 @@
         </div>
     </form>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-day-row]').forEach(function (row) {
+        const toggle = row.querySelector('.working-day-toggle');
+        const inputs = row.querySelectorAll('.working-time-input');
+
+        function syncRowState() {
+            const isEnabled = toggle.checked;
+
+            row.classList.toggle('border-primary', isEnabled);
+            row.classList.toggle('bg-primary-light', isEnabled);
+
+            inputs.forEach(function (input) {
+                input.disabled = !isEnabled;
+                input.classList.toggle('opacity-50', !isEnabled);
+                input.classList.toggle('cursor-not-allowed', !isEnabled);
+            });
+        }
+
+        toggle.addEventListener('change', syncRowState);
+        syncRowState();
+    });
+});
+</script>
 @endsection

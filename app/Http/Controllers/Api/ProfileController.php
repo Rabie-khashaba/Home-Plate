@@ -14,6 +14,16 @@ use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
+    private const WORKING_DAYS = [
+        'saturday',
+        'sunday',
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+    ];
+
     public function appUser(int $id)
     {
         $user = AppUser::with(['city', 'area'])->findOrFail($id);
@@ -101,6 +111,8 @@ class ProfileController extends Controller
     {
         $vendor = Vendor::findOrFail($id);
 
+        $this->normalizeWorkingTime($request);
+
         $validated = $request->validate([
             'full_name' => 'nullable|string|max:255',
             'phone' => ['nullable', Rule::unique('vendors', 'phone')->ignore($vendor->id)],
@@ -118,6 +130,9 @@ class ProfileController extends Controller
             'kitchen_photo_2' => 'nullable|image|max:4096',
             'kitchen_photo_3' => 'nullable|image|max:4096',
             'working_time' => 'nullable|array',
+            'working_time.*.day' => ['required_with:working_time.*', Rule::in(self::WORKING_DAYS)],
+            'working_time.*.from' => 'required_with:working_time.*|date_format:g:i A',
+            'working_time.*.to' => 'required_with:working_time.*|date_format:g:i A',
         ]);
 
         foreach ($this->vendorImageFields() as $field) {
@@ -190,6 +205,33 @@ class ProfileController extends Controller
             'message' => 'Delivery updated successfully.',
             'data' => $this->withImageUrls($delivery->fresh(['city', 'area']), $this->deliveryImageFields()),
         ]);
+    }
+
+    private function normalizeWorkingTime(Request $request): void
+    {
+        $workingTime = $request->input('working_time');
+
+        if (! is_array($workingTime)) {
+            return;
+        }
+
+        foreach ($workingTime as $index => $slot) {
+            if (! is_array($slot)) {
+                continue;
+            }
+
+            foreach (['from', 'to'] as $key) {
+                if (! empty($slot[$key]) && is_string($slot[$key])) {
+                    $workingTime[$index][$key] = preg_replace_callback(
+                        '/\b(am|pm)\b/i',
+                        fn ($matches) => strtoupper($matches[1]),
+                        trim($slot[$key])
+                    );
+                }
+            }
+        }
+
+        $request->merge(['working_time' => $workingTime]);
     }
 
     private function withImageUrls(Model $model, array $imageFields): array

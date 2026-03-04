@@ -8,16 +8,25 @@
             ? $vendor->working_time
             : (json_decode($vendor->working_time ?? '', true) ?: null);
 
-        $workingTimeText = '-';
+        if (isset($workingTime['day'])) {
+            $workingTime = [$workingTime];
+        }
+
+        $workingTimeText = [];
 
         if (is_array($workingTime)) {
-            $day = isset($workingTime['day']) ? ucfirst($workingTime['day']) : null;
-            $from = $workingTime['from'] ?? null;
-            $to = $workingTime['to'] ?? null;
+            foreach ($workingTime as $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
 
-            $parts = array_filter([$day, ($from && $to) ? "{$from} - {$to}" : null]);
-            if (! empty($parts)) {
-                $workingTimeText = implode(' | ', $parts);
+                $day = isset($slot['day']) ? ucfirst($slot['day']) : null;
+                $from = $slot['from'] ?? null;
+                $to = $slot['to'] ?? null;
+
+                if ($day && $from && $to) {
+                    $workingTimeText[] = "{$day}: {$from} - {$to}";
+                }
             }
         }
     @endphp
@@ -91,7 +100,15 @@
                         </li>
                         <li class="flex items-start gap-2">
                             <span>Working:</span>
-                            <span>{{ $workingTimeText }}</span>
+                            <span>
+                                @if ($workingTimeText)
+                                    @foreach ($workingTimeText as $workingSlot)
+                                        <span class="block">{{ $workingSlot }}</span>
+                                    @endforeach
+                                @else
+                                    -
+                                @endif
+                            </span>
                         </li>
                     </ul>
                 </div>

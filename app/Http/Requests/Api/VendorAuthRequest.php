@@ -13,14 +13,20 @@ class VendorAuthRequest extends FormRequest
         $workingTime = $this->input('working_time', []);
 
         if (is_array($workingTime)) {
-            foreach (['from', 'to'] as $key) {
-                if (! empty($workingTime[$key]) && is_string($workingTime[$key])) {
-                    // Normalize am/pm casing (e.g. "Pm" => "PM") before validation.
-                    $workingTime[$key] = preg_replace_callback(
-                        '/\b(am|pm)\b/i',
-                        fn ($matches) => strtoupper($matches[1]),
-                        trim($workingTime[$key])
-                    );
+            foreach ($workingTime as $index => $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
+
+                foreach (['from', 'to'] as $key) {
+                    if (! empty($slot[$key]) && is_string($slot[$key])) {
+                        // Normalize am/pm casing (e.g. "Pm" => "PM") before validation.
+                        $workingTime[$index][$key] = preg_replace_callback(
+                            '/\b(am|pm)\b/i',
+                            fn ($matches) => strtoupper($matches[1]),
+                            trim($slot[$key])
+                        );
+                    }
                 }
             }
 
@@ -74,10 +80,10 @@ class VendorAuthRequest extends FormRequest
             'kitchen_photo_1' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'kitchen_photo_2' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'kitchen_photo_3' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
-            'working_time' => 'required|array',
-            'working_time.day' => 'required|in:saturday,sunday,monday,tuesday,wednesday,thursday,friday',
-            'working_time.from' => 'required|date_format:g:i A',
-            'working_time.to' => 'required|date_format:g:i A|after:working_time.from',
+            'working_time' => 'required|array|min:1',
+            'working_time.*.day' => 'required|in:saturday,sunday,monday,tuesday,wednesday,thursday,friday|distinct',
+            'working_time.*.from' => 'required|date_format:g:i A',
+            'working_time.*.to' => 'required|date_format:g:i A',
         ];
     }
 
