@@ -5,13 +5,14 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AppUserAuthController;
 use App\Http\Controllers\Api\DeliveryAuthController;
 use App\Http\Controllers\Api\VendorAuthController;
-use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\AppUserStatusController;
 use App\Http\Controllers\Api\DeliveryStatusController;
 use App\Http\Controllers\Api\VendorStatusController;
 use App\Http\Controllers\Api\GeneralRequestController;
+use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
 use App\Http\Controllers\Api\OrderController as ApiOrderController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -30,6 +31,8 @@ Route::prefix('general')->group(function () {
     Route::get('/countries', [GeneralRequestController::class, 'countries']);
     Route::get('/cities', [GeneralRequestController::class, 'cities']);
     Route::get('/areas', [GeneralRequestController::class, 'areas']);
+    Route::get('/items', [ItemController::class, 'getAllItems']);
+    Route::get('/items/{id}', [ItemController::class, 'getItemById']);
 });
 
 
@@ -82,6 +85,7 @@ Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+
     Route::prefix('orders')->group(function () {
         Route::post('/', [ApiOrderController::class, 'store']); // app user creates order (includes item_id)
         Route::get('/my', [ApiOrderController::class, 'myOrders']);
@@ -104,7 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('items')->group(function () {
-        Route::get('/', [ItemController::class, 'index']);
+        Route::get('/', [ItemController::class, 'indexApproved']);
         Route::post('/{id}/approve', [ItemController::class, 'approve']);
         Route::post('/{id}/reject', [ItemController::class, 'reject']);
     });

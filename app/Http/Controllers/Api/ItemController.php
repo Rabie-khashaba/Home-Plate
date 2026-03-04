@@ -13,8 +13,33 @@ use Illuminate\Validation\Rule;
 
 class ItemController extends Controller
 {
-    public function index(Request $request)
+    public function getAllItems()
     {
+        $items = $this->publicItemsQuery()
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'message' => $items->isEmpty() ? 'No items found.' : 'Items fetched successfully.',
+            'data' => $items->map(function (Item $item) {
+                return $this->withImageUrls($item);
+            })->values(),
+        ]);
+    }
+
+    public function getItemById(int $id)
+    {
+        $item = $this->publicItemsQuery()->findOrFail($id);
+
+        return response()->json([
+            'message' => 'Item fetched successfully.',
+            'data' => $this->withImageUrls($item),
+        ]);
+    }
+
+    public function indexApproved(Request $request)
+    {
+
         $vendor = $this->ensureVendor($request);
 
         $items = Item::with(['vendor', 'category'])
@@ -31,23 +56,22 @@ class ItemController extends Controller
         ]);
     }
 
-    // public function vendorIndex(Request $request)
-    // {
-    //     $vendor = $this->ensureVendor($request);
+    public function vendorIndex(Request $request)
+    {
+        $vendor = $this->ensureVendor($request);
 
-    //     $items = Item::with(['vendor', 'category'])
-    //         ->where('vendor_id', $vendor->id)
-    //         ->where('approval_status', 'approved')
-    //         ->latest()
-    //         ->get();
+        $items = Item::with(['vendor', 'category'])
+            ->where('vendor_id', $vendor->id)
+            ->latest()
+            ->get();
 
-    //     return response()->json([
-    //         'message' => $items->isEmpty() ? 'No vendor items found.' : 'Vendor items fetched successfully.',
-    //         'data' => $items->map(function (Item $item) {
-    //             return $this->withImageUrls($item);
-    //         })->values(),
-    //     ]);
-    // }
+        return response()->json([
+            'message' => $items->isEmpty() ? 'No vendor items found.' : 'Vendor items fetched successfully.',
+            'data' => $items->map(function (Item $item) {
+                return $this->withImageUrls($item);
+            })->values(),
+        ]);
+    }
 
     public function store(Request $request)
     {
@@ -194,6 +218,13 @@ class ItemController extends Controller
             'message' => 'Item paused.',
             'data' => $this->withImageUrls($item->fresh(['vendor', 'category'])),
         ]);
+    }
+
+    private function publicItemsQuery()
+    {
+        return Item::with(['vendor', 'category'])
+            ->where('approval_status', 'approved')
+            ->where('availability_status', 'published');
     }
 
     private function storePhotos(array $files): array

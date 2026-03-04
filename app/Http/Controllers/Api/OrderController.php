@@ -374,9 +374,9 @@ class OrderController extends Controller
             return response()->json(['message' => 'Order is not assigned to this delivery user.'], 403);
         }
 
-        if ($order->status !== Order::STATUS_PICKED_UP) {
-            return response()->json(['message' => 'Order must be picked up first.'], 422);
-        }
+        // if ($order->status !== Order::STATUS_PICKED_UP) {
+        //     return response()->json(['message' => 'Order must be picked up first.'], 422);
+        // }
 
         $order->forceFill(['out_for_delivery_at' => now()])->save();
         $order->transitionTo(
