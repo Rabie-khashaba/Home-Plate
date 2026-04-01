@@ -52,8 +52,14 @@
 
         <div>
             <label>Vehicle Type</label>
-            <input type="text" name="vehicle_type" value="{{ old('vehicle_type', $delivery->vehicle_type) }}" class="form-input" />
+            <select name="vehicle_type" class="form-input" required>
+                <option value="">Select Vehicle Type</option>
+                <option value="car" {{ old('vehicle_type', $delivery->vehicle_type) == 'car' ? 'selected' : '' }}>Car</option>
+                <option value="motorcycle" {{ old('vehicle_type', $delivery->vehicle_type) == 'motorcycle' ? 'selected' : '' }}>Motorcycle</option>
+                <option value="bicycle" {{ old('vehicle_type', $delivery->vehicle_type) == 'bicycle' ? 'selected' : '' }}>Bicycle</option>
+            </select>
         </div>
+
 
         <div>
             <label>Status</label>
@@ -76,7 +82,7 @@
                 <label>{{ ucwords(str_replace('_', ' ', $file)) }}</label>
                 <input type="file" name="{{ $file }}" class="form-input" />
                 @if($delivery->$file)
-                    <img src="{{ asset('storage/'.$delivery->$file) }}" class="w-20 h-20 mt-2 rounded-md object-cover">
+                    <img src="{{ asset('storage/app/public/'.$delivery->$file) }}" class="w-20 h-20 mt-2 rounded-md object-cover">
                 @endif
             </div>
         @endforeach
@@ -90,7 +96,7 @@
                 <label>Vehicle License {{ ucfirst($key) }}</label>
                 <input type="file" name="vehicle_license[{{ $key }}]" class="form-input" />
                 @if(!empty($delivery->vehicle_license[$key]))
-                    <img src="{{ asset('storage/'.$delivery->vehicle_license[$key]) }}"
+                    <img src="{{ asset('storage/app/public/'.$delivery->vehicle_license[$key]) }}"
                         class="w-20 h-20 mt-2 rounded-md object-cover"
                         alt="Vehicle License {{ $key }}">
                 @endif

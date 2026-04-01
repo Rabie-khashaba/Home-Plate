@@ -57,8 +57,9 @@
                                         <li><a href="{{route('deliveries.index')}}">Delivery</a></li>
                                     </ul>
                                 </li>
-
-                                <!-- ITEMS -->
+                                
+                                
+                                 <!-- ITEMS -->
                                 <li class="menu nav-item">
                                     <button
                                         type="button"
@@ -76,18 +77,18 @@
                                     </button>
 
                                     <ul x-show="activeDropdown === 'items'" x-collapse class="sub-menu text-gray-500 ml-6">
-                                        <li><a href="#">Requests </a></li>
-                                        <li><a href="#">All Items</a></li>
+                                        <li><a href="{{ route('items.index', ['approval_status' => 'pending']) }}">Requests </a></li>
+                                        <li><a href="{{ route('items.index', ['approval_status' => 'approved']) }}">All Items</a></li>
                                     </ul>
                                 </li>
 
 
                                 <!-- ORDERS -->
                                 <li class="menu nav-item">
-                                    <a href="#"
+                                    <a href="{{ route('orders.index') }}"
                                     @class([
                                         'nav-link group flex w-full items-center justify-start dark:text-[#506690] hover:text-primary',
-                                        'active' => request()->routeIs('app_users.*')
+                                        'active' => request()->routeIs('orders.*')
                                     ])>
                                         <div class="flex items-center">
                                             <span class="ltr:pl-3 rtl:pr-3">Orders</span>
@@ -157,7 +158,6 @@
                                         <li><a href="#">Slider / Banners </a></li>
                                     </ul>
                                 </li>
-
 
                                 <!-- SETTINGS -->
                                 <li class="menu nav-item">

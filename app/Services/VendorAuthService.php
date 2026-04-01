@@ -12,7 +12,6 @@ use Illuminate\Validation\ValidationException;
 class VendorAuthService
 {
     private const REGISTER_PREFIX = 'vendor_auth:register:';
-    private const RESET_PREFIX = 'vendor_auth:reset:';
     private const OTP_TTL_MINUTES = 10;
 
     public function __construct(
@@ -52,7 +51,7 @@ class VendorAuthService
                 'kitchen_photo_1' => $data['kitchen_photo_1'] ?? null,
                 'kitchen_photo_2' => $data['kitchen_photo_2'] ?? null,
                 'kitchen_photo_3' => $data['kitchen_photo_3'] ?? null,
-                'working_time' => isset($data['working_time']) ? json_encode($data['working_time']) : null,
+                'working_time' => $data['working_time'] ?? null,
                 'is_active' => false,
                 'status' => 'pending',
             ],
@@ -90,13 +89,7 @@ class VendorAuthService
             ]);
         }
 
-        $payload = $cached['payload'];
-
-        if (isset($payload['working_time']) && is_array($payload['working_time'])) {
-            $payload['working_time'] = json_encode($payload['working_time']);
-        }
-
-        $vendor = Vendor::create($payload);
+        $vendor = Vendor::create($cached['payload']);
         Cache::forget($this->registerKey($phone));
 
         $token = $vendor->createToken('vendor_token')->plainTextToken;
@@ -145,11 +138,14 @@ class VendorAuthService
 
         $otp = $this->generateOtp();
 
-        Cache::put($this->resetKey($phone), [
-            'otp_hash' => Hash::make($otp),
-        ], now()->addMinutes(self::OTP_TTL_MINUTES));
-
-        $this->sendOtpOrFail($phone, $otp, 'vendor_reset_password');
+        try {
+            $this->storeOtp($vendor, $otp);
+            $this->sendOtpOrFail($phone, $otp, 'vendor_reset_password');
+        } catch (ValidationException $e) {
+            $this->clearOtp($vendor);
+            $vendor->save();
+            throw $e;
+        }
 
         return [
             'message' => 'OTP sent to WhatsApp for password reset.',
@@ -157,7 +153,82 @@ class VendorAuthService
         ];
     }
 
-    public function resetPassword(string $phone, string $otp, string $password): array
+    public function resendOtp(string $phone): array
+    {
+        $vendor = Vendor::where('phone', $phone)->first();
+
+        if ($vendor) {
+            $otp = $this->generateOtp();
+
+            try {
+                $this->storeOtp($vendor, $otp);
+                $this->sendOtpOrFail($phone, $otp, 'vendor_resend_otp');
+            } catch (ValidationException $e) {
+                $this->clearOtp($vendor);
+                $vendor->save();
+                throw $e;
+            }
+
+            return [
+                'message' => 'OTP sent successfully.',
+                'phone' => $vendor->phone,
+            ];
+        }
+
+        $cacheKey = $this->registerKey($phone);
+        $cachedData = Cache::get($cacheKey);
+
+        if ($cachedData && isset($cachedData['payload'])) {
+            $otp = $this->generateOtp();
+
+            Cache::put($cacheKey, [
+                'otp_hash' => Hash::make($otp),
+                'payload' => $cachedData['payload'],
+            ], now()->addMinutes(self::OTP_TTL_MINUTES));
+
+            $this->sendOtpOrFail($phone, $otp, 'vendor_register');
+
+            return [
+                'message' => 'OTP sent successfully.',
+                'phone' => $phone,
+                'registration_pending' => true,
+            ];
+        }
+
+        throw ValidationException::withMessages([
+            'phone' => ['User not found or registration expired.'],
+        ]);
+    }
+
+    public function verifyForgotPasswordOtp(string $phone, ?string $otp): array
+    {
+
+
+        $vendor = Vendor::where('phone', $phone)->first();
+
+        if (! $vendor) {
+            throw ValidationException::withMessages([
+                'phone' => ['Phone is not registered.'],
+            ]);
+        }
+
+        if (! $otp) {
+            throw ValidationException::withMessages([
+                'otp' => ['Invalid OTP.'],
+            ]);
+        }
+
+        $this->assertValidOtp($vendor, $otp);
+        $this->clearOtp($vendor);
+        $vendor->save();
+
+        return [
+            'message' => 'OTP verified successfully.',
+        ];
+    }
+
+
+    public function resetPassword(string $phone, string $password): array
     {
         $vendor = Vendor::where('phone', $phone)->first();
 
@@ -167,25 +238,9 @@ class VendorAuthService
             ]);
         }
 
-        $cached = Cache::get($this->resetKey($phone));
-
-        if (! $cached || ! isset($cached['otp_hash'])) {
-            throw ValidationException::withMessages([
-                'otp' => ['OTP expired or not found.'],
-            ]);
-        }
-
-        if (! Hash::check($otp, $cached['otp_hash'])) {
-            throw ValidationException::withMessages([
-                'otp' => ['Invalid OTP.'],
-            ]);
-        }
-
         // Vendor model hashes via mutator.
         $vendor->password = $password;
         $vendor->save();
-
-        Cache::forget($this->resetKey($phone));
 
         return [
             'message' => 'Password reset successfully.',
@@ -212,11 +267,6 @@ class VendorAuthService
     private function registerKey(string $phone): string
     {
         return self::REGISTER_PREFIX.$phone;
-    }
-
-    private function resetKey(string $phone): string
-    {
-        return self::RESET_PREFIX.$phone;
     }
 
     private function storeRegisterFiles(array $data): array
@@ -246,5 +296,39 @@ class VendorAuthService
             'kitchen_photo_2',
             'kitchen_photo_3',
         ];
+    }
+
+    private function storeOtp(Vendor $vendor, string $otp): void
+    {
+        $vendor->otp_code = $otp;
+        $vendor->otp_expires_at = now()->addMinutes(self::OTP_TTL_MINUTES);
+        $vendor->save();
+    }
+
+    private function clearOtp(Vendor $vendor): void
+    {
+        $vendor->otp_code = null;
+        $vendor->otp_expires_at = null;
+    }
+
+    private function assertValidOtp(Vendor $vendor, string $otp): void
+    {
+        if (! $vendor->otp_code) {
+            throw ValidationException::withMessages([
+                'otp' => ['OTP not found. Please request a new OTP.'],
+            ]);
+        }
+
+        if ($vendor->otp_code !== $otp) {
+            throw ValidationException::withMessages([
+                'otp' => ['OTP value not found.'],
+            ]);
+        }
+
+        if (! $vendor->otp_expires_at || now()->greaterThan($vendor->otp_expires_at)) {
+            throw ValidationException::withMessages([
+                'otp' => ['OTP expired.'],
+            ]);
+        }
     }
 }

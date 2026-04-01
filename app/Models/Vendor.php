@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -15,6 +16,8 @@ class Vendor extends Authenticatable
         'phone',
         'email',
         'password',
+        'otp_code',
+        'otp_expires_at',
         'id_front',
         'id_back',
         'restaurant_info',
@@ -31,13 +34,15 @@ class Vendor extends Authenticatable
         'status',
         'is_active',
     ];
+    
+    protected $casts = [
+         'is_active' => 'boolean',
+         'otp_expires_at' => 'datetime',
+         'working_time' => 'array',
+    ];
+
 
     protected $hidden = ['password'];
-
-    protected $casts = [
-        'is_active' => 'boolean',
-        'working_time' => 'array',
-    ];
 
     // 🔹 العلاقات
     public function city()
@@ -50,7 +55,16 @@ class Vendor extends Authenticatable
         return $this->belongsTo(Area::class);
     }
 
+    public function items()
+    {
+        return $this->hasMany(Item::class);
+    }
 
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+    
         // 🔹 التشفير
     public function setPasswordAttribute($value)
     {

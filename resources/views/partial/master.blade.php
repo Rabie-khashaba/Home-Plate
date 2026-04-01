@@ -235,7 +235,7 @@
                         <h5 class="mb-1 text-base leading-none dark:text-white">Navigation Position</h5>
                         <p class="text-xs text-white-dark">Select the primary navigation paradigm for your app.</p>
                         <div class="mt-3 grid grid-cols-3 gap-2">
-                        {{--    <button
+                           {{-- <button
                                 type="button"
                                 class="btn"
                                 :class="[$store.app.menu === 'horizontal' ? 'btn-primary' :'btn-outline-primary']"
@@ -378,7 +378,7 @@
                     <div x-data="sales">
                         <ul class="flex space-x-2 rtl:space-x-reverse">
                             <li>
-                                <a href="javascript:;" class="text-primary hover:underline">Dashboard</a>
+                                <a href="{{url('/')}}" class="text-primary hover:underline">Dashboard</a>
                             </li>
                             <li class="before:content-['/'] ltr:before:mr-1 rtl:before:ml-1">
                                 <span>Home Plate</span>

@@ -58,7 +58,6 @@
                 <option value="car">Car</option>
                 <option value="motorcycle">Motorcycle</option>
                 <option value="bicycle">Bicycle</option>
-                <option value="truck">Truck</option>
             </select>
         </div>
 

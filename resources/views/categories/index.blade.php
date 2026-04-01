@@ -27,7 +27,7 @@
                     <td>{{ $category->name_ar }}</td>
                     <td>
                         @if($category->photo)
-                            <img src="{{ asset('storage/'.$category->photo) }}" class="w-12 h-12 rounded" />
+                            <img src="{{ asset('storage/app/public/'.$category->photo) }}" class="w-12 h-12 rounded" />
                         @else
                             <span class="text-gray-400">No Photo</span>
                         @endif

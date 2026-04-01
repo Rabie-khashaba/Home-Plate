@@ -378,7 +378,7 @@
                                         </template>
                                     </ul>
                                 </div> --}}
-                                <div class="dropdown" x-data="dropdown" @click.outside="open = false">
+                                {{-- <div class="dropdown" x-data="dropdown" @click.outside="open = false">
                                     <a
                                         href="javascript:;"
                                         class="relative block rounded-full bg-white-light/40 p-2 hover:bg-white-light/90 hover:text-primary dark:bg-dark/40 dark:hover:bg-dark/60"
@@ -490,8 +490,8 @@
                                             </li>
                                         </template>
                                     </ul>
-                                </div>
-                                <div class="dropdown flex-shrink-0" x-data="dropdown" @click.outside="open = false">
+                                </div> --}}
+                               <div class="dropdown flex-shrink-0" x-data="dropdown" @click.outside="open = false">
                                     <a href="javascript:;" class="group relative" @click="toggle()">
                                         <span
                                             ><img
@@ -524,7 +524,7 @@
                                                 </div>
                                             </div>
                                         </li>
-                                        <li>
+                                       {{-- <li>
                                             <a href="users-profile.html" class="dark:hover:text-white" @click="toggle">
                                                 <svg
                                                     class="h-4.5 w-4.5 shrink-0 ltr:mr-2 rtl:ml-2"
@@ -545,7 +545,7 @@
                                                 Profile</a
                                             >
                                         </li>
-                                   {{-- <li>
+                                    <li>
                                             <a href="apps-mailbox.html" class="dark:hover:text-white" @click="toggle">
                                                 <svg
                                                     class="h-4.5 w-4.5 shrink-0 ltr:mr-2 rtl:ml-2"

@@ -10,7 +10,6 @@ use Illuminate\Validation\ValidationException;
 class AppUserAuthService
 {
     private const REGISTER_PREFIX = 'app_user_auth:register:';
-    private const RESET_PREFIX = 'app_user_auth:reset:';
     private const OTP_TTL_MINUTES = 10;
 
     public function __construct(
@@ -126,11 +125,14 @@ class AppUserAuthService
 
         $otp = $this->generateOtp();
 
-        Cache::put($this->resetKey($phone), [
-            'otp_hash' => Hash::make($otp),
-        ], now()->addMinutes(self::OTP_TTL_MINUTES));
-
-        $this->sendOtpOrFail($phone, $otp, 'app_user_reset_password');
+        try {
+            $this->storeOtp($appUser, $otp);
+            $this->sendOtpOrFail($phone, $otp, 'app_user_reset_password');
+        } catch (ValidationException $e) {
+            $this->clearOtp($appUser);
+            $appUser->save();
+            throw $e;
+        }
 
         return [
             'message' => 'OTP sent to WhatsApp for password reset.',
@@ -138,7 +140,54 @@ class AppUserAuthService
         ];
     }
 
-    public function resetPassword(string $phone, string $otp, string $password): array
+    public function resendOtp(string $phone): array
+    {
+        $appUser = AppUser::where('phone', $phone)->first();
+
+        if ($appUser) {
+            $otp = $this->generateOtp();
+
+            try {
+                $this->storeOtp($appUser, $otp);
+                $this->sendOtpOrFail($phone, $otp, 'app_user_resend_otp');
+            } catch (ValidationException $e) {
+                $this->clearOtp($appUser);
+                $appUser->save();
+                throw $e;
+            }
+
+            return [
+                'message' => 'OTP sent successfully.',
+                'phone' => $appUser->phone,
+            ];
+        }
+
+        $cacheKey = $this->registerKey($phone);
+        $cachedData = Cache::get($cacheKey);
+
+        if ($cachedData && isset($cachedData['payload'])) {
+            $otp = $this->generateOtp();
+
+            Cache::put($cacheKey, [
+                'otp_hash' => Hash::make($otp),
+                'payload' => $cachedData['payload'],
+            ], now()->addMinutes(self::OTP_TTL_MINUTES));
+
+            $this->sendOtpOrFail($phone, $otp, 'app_user_register');
+
+            return [
+                'message' => 'OTP sent successfully.',
+                'phone' => $phone,
+                'registration_pending' => true,
+            ];
+        }
+
+        throw ValidationException::withMessages([
+            'phone' => ['User not found or registration expired.'],
+        ]);
+    }
+
+    public function verifyForgotPasswordOtp(string $phone, string $otp): array
     {
         $appUser = AppUser::where('phone', $phone)->first();
 
@@ -148,24 +197,27 @@ class AppUserAuthService
             ]);
         }
 
-        $cached = Cache::get($this->resetKey($phone));
+        $this->assertValidOtp($appUser, $otp);
+        $this->clearOtp($appUser);
+        $appUser->save();
 
-        if (! $cached || ! isset($cached['otp_hash'])) {
-            throw ValidationException::withMessages([
-                'otp' => ['OTP expired or not found.'],
-            ]);
-        }
+        return [
+            'message' => 'OTP verified successfully.',
+        ];
+    }
 
-        if (! Hash::check($otp, $cached['otp_hash'])) {
+    public function resetPassword(string $phone, string $password): array
+    {
+        $appUser = AppUser::where('phone', $phone)->first();
+
+        if (! $appUser) {
             throw ValidationException::withMessages([
-                'otp' => ['Invalid OTP.'],
+                'phone' => ['Phone is not registered.'],
             ]);
         }
 
         $appUser->password = Hash::make($password);
         $appUser->save();
-
-        Cache::forget($this->resetKey($phone));
 
         return [
             'message' => 'Password reset successfully.',
@@ -186,7 +238,7 @@ class AppUserAuthService
 
     private function generateOtp(): string
     {
-        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        return str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     }
 
     private function registerKey(string $phone): string
@@ -194,8 +246,31 @@ class AppUserAuthService
         return self::REGISTER_PREFIX.$phone;
     }
 
-    private function resetKey(string $phone): string
+    private function storeOtp(AppUser $appUser, string $otp): void
     {
-        return self::RESET_PREFIX.$phone;
+        $appUser->otp_code = $otp;
+        $appUser->otp_expires_at = now()->addMinutes(self::OTP_TTL_MINUTES);
+        $appUser->save();
+    }
+
+    private function clearOtp(AppUser $appUser): void
+    {
+        $appUser->otp_code = null;
+        $appUser->otp_expires_at = null;
+    }
+
+    private function assertValidOtp(AppUser $appUser, string $otp): void
+    {
+        if ($appUser->otp_code !== $otp) {
+            throw ValidationException::withMessages([
+                'otp' => ['Invalid OTP.'],
+            ]);
+        }
+
+        if (! $appUser->otp_expires_at || now()->greaterThan($appUser->otp_expires_at)) {
+            throw ValidationException::withMessages([
+                'otp' => ['OTP expired.'],
+            ]);
+        }
     }
 }

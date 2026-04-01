@@ -26,6 +26,7 @@ class AppUserController extends Controller
 
     public function store(Request $request)
     {
+        //return $request;
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|unique:app_users,email',

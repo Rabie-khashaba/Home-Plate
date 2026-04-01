@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AppUser extends Authenticatable
 {
@@ -16,7 +17,7 @@ class AppUser extends Authenticatable
 
     protected $fillable = [
         'name', 'email', 'phone', 'password', 'gender',
-        'photo', 'dob', 'city_id', 'area_id', 'delivery_addresses','location', 'is_active'
+        'otp_code', 'otp_expires_at', 'photo', 'dob', 'city_id', 'area_id', 'delivery_addresses','location', 'is_active'
     ];
 
     protected $hidden = ['password'];
@@ -24,9 +25,10 @@ class AppUser extends Authenticatable
     protected $casts = [
         'dob' => 'date',
         'is_active' => 'boolean',
+        'otp_expires_at' => 'datetime',
     ];
-
-
+    
+    
     public function city()
     {
         return $this->belongsTo(City::class);
@@ -39,5 +41,8 @@ class AppUser extends Authenticatable
         return $this->belongsTo(Area::class);
     }
 
-
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
 }

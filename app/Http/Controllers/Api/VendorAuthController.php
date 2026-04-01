@@ -55,12 +55,37 @@ class VendorAuthController extends Controller
         );
     }
 
+    public function resendOtp(VendorAuthRequest $request)
+    {
+        $data = $request->validated();
+
+        return response()->json(
+            $this->vendorAuthService->resendOtp($data['phone'])
+        );
+    }
+
+    public function verifyForgotPasswordOtp(VendorAuthRequest $request)
+    {
+        $data = $request->validated();
+
+        try {
+            return response()->json(
+                $this->vendorAuthService->verifyForgotPasswordOtp($data['phone'], $data['otp'])
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'OTP verification failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+    }
+
     public function resetPassword(VendorAuthRequest $request)
     {
         $data = $request->validated();
 
         return response()->json(
-            $this->vendorAuthService->resetPassword($data['phone'], $data['otp'], $data['password'])
+            $this->vendorAuthService->resetPassword($data['phone'], $data['password'])
         );
     }
 

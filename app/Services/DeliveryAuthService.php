@@ -10,7 +10,6 @@ use Illuminate\Validation\ValidationException;
 class DeliveryAuthService
 {
     private const REGISTER_PREFIX = 'delivery_auth:register:';
-    private const RESET_PREFIX = 'delivery_auth:reset:';
     private const OTP_TTL_MINUTES = 10;
 
     public function __construct(
@@ -124,11 +123,14 @@ class DeliveryAuthService
 
         $otp = $this->generateOtp();
 
-        Cache::put($this->resetKey($phone), [
-            'otp_hash' => Hash::make($otp),
-        ], now()->addMinutes(self::OTP_TTL_MINUTES));
-
-        $this->sendOtpOrFail($phone, $otp, 'reset_password');
+        try {
+            $this->storeOtp($delivery, $otp);
+            $this->sendOtpOrFail($phone, $otp, 'reset_password');
+        } catch (ValidationException $e) {
+            $this->clearOtp($delivery);
+            $delivery->save();
+            throw $e;
+        }
 
         return [
             'message' => 'OTP sent to WhatsApp for password reset.',
@@ -136,7 +138,54 @@ class DeliveryAuthService
         ];
     }
 
-    public function resetPassword(string $phone, string $otp, string $password): array
+    public function resendOtp(string $phone): array
+    {
+        $delivery = Delivery::where('phone', $phone)->first();
+
+        if ($delivery) {
+            $otp = $this->generateOtp();
+
+            try {
+                $this->storeOtp($delivery, $otp);
+                $this->sendOtpOrFail($phone, $otp, 'resend_otp');
+            } catch (ValidationException $e) {
+                $this->clearOtp($delivery);
+                $delivery->save();
+                throw $e;
+            }
+
+            return [
+                'message' => 'OTP sent successfully.',
+                'phone' => $delivery->phone,
+            ];
+        }
+
+        $cacheKey = $this->registerKey($phone);
+        $cachedData = Cache::get($cacheKey);
+
+        if ($cachedData && isset($cachedData['payload'])) {
+            $otp = $this->generateOtp();
+
+            Cache::put($cacheKey, [
+                'otp_hash' => Hash::make($otp),
+                'payload' => $cachedData['payload'],
+            ], now()->addMinutes(self::OTP_TTL_MINUTES));
+
+            $this->sendOtpOrFail($phone, $otp, 'register');
+
+            return [
+                'message' => 'OTP sent successfully.',
+                'phone' => $phone,
+                'registration_pending' => true,
+            ];
+        }
+
+        throw ValidationException::withMessages([
+            'phone' => ['User not found or registration expired.'],
+        ]);
+    }
+
+    public function verifyForgotPasswordOtp(string $phone, string $otp): array
     {
         $delivery = Delivery::where('phone', $phone)->first();
 
@@ -146,24 +195,27 @@ class DeliveryAuthService
             ]);
         }
 
-        $cached = Cache::get($this->resetKey($phone));
+        $this->assertValidOtp($delivery, $otp);
+        $this->clearOtp($delivery);
+        $delivery->save();
 
-        if (! $cached || ! isset($cached['otp_hash'])) {
-            throw ValidationException::withMessages([
-                'otp' => ['OTP expired or not found.'],
-            ]);
-        }
+        return [
+            'message' => 'OTP verified successfully.',
+        ];
+    }
 
-        if (! Hash::check($otp, $cached['otp_hash'])) {
+    public function resetPassword(string $phone, string $password): array
+    {
+        $delivery = Delivery::where('phone', $phone)->first();
+
+        if (! $delivery) {
             throw ValidationException::withMessages([
-                'otp' => ['Invalid OTP.'],
+                'phone' => ['Phone is not registered.'],
             ]);
         }
 
         $delivery->password = Hash::make($password);
         $delivery->save();
-
-        Cache::forget($this->resetKey($phone));
 
         return [
             'message' => 'Password reset successfully.',
@@ -184,7 +236,7 @@ class DeliveryAuthService
 
     private function generateOtp(): string
     {
-        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        return str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     }
 
     private function registerKey(string $phone): string
@@ -192,8 +244,31 @@ class DeliveryAuthService
         return self::REGISTER_PREFIX.$phone;
     }
 
-    private function resetKey(string $phone): string
+    private function storeOtp(Delivery $delivery, string $otp): void
     {
-        return self::RESET_PREFIX.$phone;
+        $delivery->otp_code = $otp;
+        $delivery->otp_expires_at = now()->addMinutes(self::OTP_TTL_MINUTES);
+        $delivery->save();
+    }
+
+    private function clearOtp(Delivery $delivery): void
+    {
+        $delivery->otp_code = null;
+        $delivery->otp_expires_at = null;
+    }
+
+    private function assertValidOtp(Delivery $delivery, string $otp): void
+    {
+        if ($delivery->otp_code !== $otp) {
+            throw ValidationException::withMessages([
+                'otp' => ['Invalid OTP.'],
+            ]);
+        }
+
+        if (! $delivery->otp_expires_at || now()->greaterThan($delivery->otp_expires_at)) {
+            throw ValidationException::withMessages([
+                'otp' => ['OTP expired.'],
+            ]);
+        }
     }
 }

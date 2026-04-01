@@ -20,7 +20,7 @@
             <div class="flex flex-col sm:flex-row">
                 <div class="ltr:sm:mr-4 rtl:sm:ml-4 w-full sm:w-2/12 mb-5 text-center">
                     @if($app_user->photo)
-                        <img src="{{ asset('storage/'.$app_user->photo) }}" alt="User Photo"
+                        <img src="{{ asset('storage/app/public/'.$app_user->photo) }}" alt="User Photo"
                              class="w-20 h-20 md:w-32 md:h-32 rounded-full object-cover mx-auto mb-3" />
                     @else
                         <img src="/assets/images/profile-placeholder.png" alt="No Image"

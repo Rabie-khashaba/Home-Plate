@@ -168,8 +168,6 @@ class DeliveryController extends Controller
     {
         $delivery = Delivery::findOrFail($id);
         $delivery->is_active = !$delivery->is_active;
-
-
         // لو مفعّل، اجعل الحالة approved
         if ($delivery->is_active) {
             $delivery->status = 'approved';

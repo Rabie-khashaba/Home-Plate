@@ -31,7 +31,7 @@
 
                 <div class="mb-5">
                     <div class="flex flex-col justify-center items-center">
-                        <img src="{{ $delivery->photo ? asset('storage/'.$delivery->photo) : asset('assets/images/profile-placeholder.png') }}"
+                        <img src="{{ $delivery->photo ? asset('storage/app/public/'.$delivery->photo) : asset('assets/images/profile-placeholder.png') }}"
                             alt="photo"
                             class="w-24 h-24 rounded-full object-cover mb-5 shadow-md" />
 
@@ -88,7 +88,6 @@
                     <div class="flex gap-4">
                         @php
                             $docs = [
-                                'Photo' => $delivery->photo,
                                 'Driver License' => $delivery->drivers_license,
                                 'National ID' => $delivery->national_id,
                                 'Vehicle Photo' => $delivery->vehicle_photo,
@@ -99,10 +98,10 @@
 
                         @foreach ($docs as $label => $path)
                             @if ($path)
-                                <div class="flex flex-col items-center text-center w-24 flex-shrink-0">
+                                <div class="flex flex-col items-center text-center w-30 flex-shrink-0">
                                     <p class="font-semibold mb-1 text-xs">{{ $label }}</p>
-                                    <a href="{{ asset('storage/'.$path) }}" target="_blank">
-                                        <img src="{{ asset('storage/'.$path) }}" alt="{{ $label }}"
+                                    <a href="{{ asset('storage/app/public/'.$path) }}" target="_blank">
+                                        <img src="{{ asset('storage/app/public/'.$path) }}" alt="{{ $label }}"
                                             class="w-16 h-16 object-cover rounded-md shadow-sm mb-1 transition-transform duration-200 hover:scale-110" />
                                     </a>
                                     <span class="text-primary underline text-xs cursor-pointer">View</span>

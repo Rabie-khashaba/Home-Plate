@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Api;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class VendorAuthRequest extends FormRequest
 {
@@ -11,14 +13,20 @@ class VendorAuthRequest extends FormRequest
         $workingTime = $this->input('working_time', []);
 
         if (is_array($workingTime)) {
-            foreach (['from', 'to'] as $key) {
-                if (! empty($workingTime[$key]) && is_string($workingTime[$key])) {
-                    // Normalize am/pm casing (e.g. "Pm" => "PM") before validation.
-                    $workingTime[$key] = preg_replace_callback(
-                        '/\b(am|pm)\b/i',
-                        fn ($matches) => strtoupper($matches[1]),
-                        trim($workingTime[$key])
-                    );
+            foreach ($workingTime as $index => $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
+
+                foreach (['from', 'to'] as $key) {
+                    if (! empty($slot[$key]) && is_string($slot[$key])) {
+                        // Normalize am/pm casing (e.g. "Pm" => "PM") before validation.
+                        $workingTime[$index][$key] = preg_replace_callback(
+                            '/\b(am|pm)\b/i',
+                            fn ($matches) => strtoupper($matches[1]),
+                            trim($slot[$key])
+                        );
+                    }
                 }
             }
 
@@ -31,6 +39,14 @@ class VendorAuthRequest extends FormRequest
         return true;
     }
 
+    protected function failedValidation(Validator $validator): void
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'Validation failed.',
+            'errors' => $validator->errors(),
+        ], 422));
+    }
+
     public function rules(): array
     {
         return match ($this->route()?->getActionMethod()) {
@@ -38,6 +54,8 @@ class VendorAuthRequest extends FormRequest
             'verifyRegisterOtp' => $this->verifyOtpRules(),
             'login' => $this->loginRules(),
             'forgotPassword' => $this->forgotPasswordRules(),
+            'resendOtp' => $this->resendOtpRules(),
+            'verifyForgotPasswordOtp' => $this->verifyForgotPasswordOtpRules(),
             'resetPassword' => $this->resetPasswordRules(),
             default => [],
         };
@@ -47,7 +65,7 @@ class VendorAuthRequest extends FormRequest
     {
         return [
             'full_name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
+            'email' => 'nullable|email|max:255',
             'phone' => 'required|string|max:30',
             'password' => 'required|string|min:6|confirmed',
             'id_front' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
@@ -62,10 +80,10 @@ class VendorAuthRequest extends FormRequest
             'kitchen_photo_1' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'kitchen_photo_2' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'kitchen_photo_3' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
-            'working_time' => 'required|array',
-            'working_time.day' => 'required|in:saturday,sunday,monday,tuesday,wednesday,thursday,friday',
-            'working_time.from' => 'required|date_format:g:i A',
-            'working_time.to' => 'required|date_format:g:i A|after:working_time.from',
+            'working_time' => 'required|array|min:1',
+            'working_time.*.day' => 'required|in:saturday,sunday,monday,tuesday,wednesday,thursday,friday|distinct',
+            'working_time.*.from' => 'required|date_format:g:i A',
+            'working_time.*.to' => 'required|date_format:g:i A',
         ];
     }
 
@@ -92,12 +110,26 @@ class VendorAuthRequest extends FormRequest
         ];
     }
 
+    private function resendOtpRules(): array
+    {
+        return [
+            'phone' => 'required|string|max:30',
+        ];
+    }
+
     private function resetPasswordRules(): array
     {
         return [
             'phone' => 'required|string|max:30',
-            'otp' => 'required|string|size:4',
             'password' => 'required|string|min:6|confirmed',
+        ];
+    }
+
+    private function verifyForgotPasswordOtpRules(): array
+    {
+        return [
+            'phone' => 'required|string|max:30',
+            'otp' => 'required|string|size:4',
         ];
     }
 }

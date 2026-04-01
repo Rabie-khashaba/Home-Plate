@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -16,6 +17,8 @@ class Delivery extends Authenticatable
         'email',
         'phone',
         'password',
+        'otp_code',
+        'otp_expires_at',
         'photo',
         'city_id',
         'area_id',
@@ -33,6 +36,7 @@ class Delivery extends Authenticatable
 
     protected $casts = [
         'is_active' => 'boolean',
+        'otp_expires_at' => 'datetime',
         'vehicle_license' => 'array',
     ];
 
@@ -48,5 +52,10 @@ class Delivery extends Authenticatable
     public function area()
     {
         return $this->belongsTo(\App\Models\Area::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
     }
 }

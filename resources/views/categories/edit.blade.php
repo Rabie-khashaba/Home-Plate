@@ -28,7 +28,7 @@
             />
             @if($category->photo)
                 <div class="mt-2">
-                    <img src="{{ asset('storage/'.$category->photo) }}" class="w-16 h-16 rounded" />
+                    <img src="{{ asset('storage/app/public/'.$category->photo) }}" class="w-16 h-16 rounded" />
                 </div>
             @endif
         </div>

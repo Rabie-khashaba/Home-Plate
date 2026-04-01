@@ -31,7 +31,7 @@
 
                 <div class="mb-5">
                     <div class="flex flex-col justify-center items-center">
-                        <img src="{{ $app_user->photo ? asset('storage/'.$app_user->photo) : asset('assets/images/profile-placeholder.png') }}"
+                        <img src="{{ asset('storage/app/public/'.$app_user->photo) }}"
                             alt="image"
                             class="w-24 h-24 rounded-full object-cover mb-5 shadow-md" />
 
@@ -103,7 +103,6 @@
                     </div>
                     <div><strong>Joined:</strong> {{ $app_user->created_at->format('d M, Y') }}</div>
                     <div><strong>Last Update:</strong> {{ $app_user->updated_at->diffForHumans() }}</div>
-
                 </div>
             </div>
         </div>

@@ -8,16 +8,25 @@
             ? $vendor->working_time
             : (json_decode($vendor->working_time ?? '', true) ?: null);
 
-        $workingTimeText = '-';
+        if (isset($workingTime['day'])) {
+            $workingTime = [$workingTime];
+        }
+
+        $workingTimeText = [];
 
         if (is_array($workingTime)) {
-            $day = isset($workingTime['day']) ? ucfirst($workingTime['day']) : null;
-            $from = $workingTime['from'] ?? null;
-            $to = $workingTime['to'] ?? null;
+            foreach ($workingTime as $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
 
-            $parts = array_filter([$day, ($from && $to) ? "{$from} - {$to}" : null]);
-            if (! empty($parts)) {
-                $workingTimeText = implode(' | ', $parts);
+                $day = isset($slot['day']) ? ucfirst($slot['day']) : null;
+                $from = $slot['from'] ?? null;
+                $to = $slot['to'] ?? null;
+
+                if ($day && $from && $to) {
+                    $workingTimeText[] = "{$day}: {$from} - {$to}";
+                }
             }
         }
     @endphp
@@ -71,7 +80,7 @@
 
                 <div class="mb-5">
                     <div class="flex flex-col justify-center items-center">
-                        <img src="{{ $vendor->main_photo ? asset('storage/' . $vendor->main_photo) : asset('assets/images/profile-placeholder.png') }}"
+                        <img src="{{ $vendor->main_photo ? asset('storage/app/public/' . $vendor->main_photo) : asset('assets/images/profile-placeholder.png') }}"
                             alt="image"
                             class="w-24 h-24 rounded-full object-cover mb-5 shadow-md" />
 
@@ -91,7 +100,15 @@
                         </li>
                         <li class="flex items-start gap-2">
                             <span>Working:</span>
-                            <span>{{ $workingTimeText }}</span>
+                            <span>
+                                @if ($workingTimeText)
+                                    @foreach ($workingTimeText as $workingSlot)
+                                        <span class="block">{{ $workingSlot }}</span>
+                                    @endforeach
+                                @else
+                                    -
+                                @endif
+                            </span>
                         </li>
                     </ul>
                 </div>
@@ -143,7 +160,7 @@
                         <div class="border rounded p-3">
                             <p class="font-semibold mb-2">{{ $label }}</p>
                             @if($image)
-                                <img src="{{ asset('storage/' . $image) }}" class="w-full h-40 object-cover rounded">
+                                <img src="{{ asset('storage/app/public/' . $image) }}" class="w-full h-40 object-cover rounded">
                             @else
                                 <p class="text-sm text-gray-400">No image</p>
                             @endif
