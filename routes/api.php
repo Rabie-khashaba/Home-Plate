@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AppUserAuthController;
 use App\Http\Controllers\Api\DeliveryAuthController;
 use App\Http\Controllers\Api\GeneralRequestController;
+use App\Http\Controllers\Api\GeneralSettingController;
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
 use App\Http\Controllers\Api\VendorAuthController;
 /*
@@ -61,4 +62,5 @@ Route::prefix('general')->group(function () {
     Route::get('/countries', [GeneralRequestController::class, 'countries']);
     Route::get('/cities', [GeneralRequestController::class, 'cities']);
     Route::get('/areas', [GeneralRequestController::class, 'areas']);
+    Route::get('/settings', [GeneralSettingController::class, 'show']);
 });

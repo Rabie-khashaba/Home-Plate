@@ -13,6 +13,9 @@ use App\Http\Controllers\SubcategoryController;
 use App\Http\Controllers\AppUserController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\ItemController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\GeneralSettingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,6 +53,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('areas', AreaController::class);
     Route::resource('admins', AdminController::class);
     Route::resource('roles', RoleController::class);
+    Route::resource('items', ItemController::class);
+    Route::resource('orders', OrderController::class);
+
+    Route::get('general-settings', [GeneralSettingController::class, 'edit'])->name('general_settings.edit');
+    Route::put('general-settings', [GeneralSettingController::class, 'update'])->name('general_settings.update');
 
 
 

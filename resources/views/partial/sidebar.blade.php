@@ -156,6 +156,7 @@
 
                                     <ul x-show="activeDropdown === 'appSetting'" x-collapse class="sub-menu text-gray-500 ml-6">
                                         <li><a href="#">Slider / Banners </a></li>
+                                        <li><a href="{{ route('general_settings.edit') }}">Maintenance</a></li>
                                     </ul>
                                 </li>
 
