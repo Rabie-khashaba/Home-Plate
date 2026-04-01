@@ -26,7 +26,7 @@ class ProfileController extends Controller
 
     public function appUser(int $id)
     {
-        $user = AppUser::with(['city', 'area'])->findOrFail($id);
+        $user = AppUser::with(['city', 'area', 'addresses'])->findOrFail($id);
 
         return response()->json([
             'message' => 'App user profile fetched successfully.',
@@ -36,7 +36,7 @@ class ProfileController extends Controller
 
     public function vendor(int $id)
     {
-        $vendor = Vendor::with(['city', 'area'])->findOrFail($id);
+        $vendor = Vendor::with(['city', 'area', 'addresses'])->findOrFail($id);
 
         return response()->json([
             'message' => 'Vendor profile fetched successfully.',

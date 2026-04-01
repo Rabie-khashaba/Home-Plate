@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AppUserAuthController;
 use App\Http\Controllers\Api\DeliveryAuthController;
 use App\Http\Controllers\Api\GeneralRequestController;
 use App\Http\Controllers\Api\GeneralSettingController;
+use App\Http\Controllers\Api\AddressController as ApiAddressController;
 use App\Http\Controllers\Api\OrderController as ApiOrderController;
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
 use App\Http\Controllers\Api\VendorController as ApiVendorController;
@@ -63,6 +64,9 @@ Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
 
 Route::middleware('auth:sanctum')->get('/vendors', [ApiVendorController::class, 'index']);
 Route::middleware('auth:sanctum')->get('/orders/last-with-top-item', [ApiOrderController::class, 'lastOrderWithTopItem']);
+
+Route::middleware('auth:sanctum')->post('/addresses/app-user/{id}', [ApiAddressController::class, 'storeForAppUser']);
+Route::middleware('auth:sanctum')->post('/addresses/vendor/{id}', [ApiAddressController::class, 'storeForVendor']);
 
 Route::prefix('general')->group(function () {
     Route::get('/categories', [GeneralRequestController::class, 'categories']);
