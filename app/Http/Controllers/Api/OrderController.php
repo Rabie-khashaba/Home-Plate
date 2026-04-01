@@ -8,10 +8,12 @@ use App\Models\AppUser;
 use App\Models\Delivery;
 use App\Models\Item;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Vendor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
@@ -155,6 +157,60 @@ class OrderController extends Controller
         }
 
         return response()->json(['message' => 'Unauthorized actor type.'], 403);
+    }
+
+    public function lastOrderWithTopItem(Request $request): JsonResponse
+    {
+        $appUser = $this->requireActor($request->user(), AppUser::class, 'Only app users can view this data.');
+        if ($appUser instanceof JsonResponse) {
+            return $appUser;
+        }
+
+        $lastOrder = Order::with(['orderItems.item', 'vendor', 'delivery'])
+            ->where('app_user_id', $appUser->id)
+            ->orderByDesc('ordered_at')
+            ->orderByDesc('id')
+            ->first();
+        if ($lastOrder) {
+            $lastOrder->orderItems->each(function ($orderItem) {
+                if ($orderItem->item) {
+                    $this->applyItemImageUrls($orderItem->item);
+                }
+            });
+        }
+
+        $topItemRow = OrderItem::query()
+            ->select('item_id', DB::raw('SUM(quantity) as total_quantity'), DB::raw('COUNT(*) as line_count'))
+            ->whereHas('order', function ($query) use ($appUser) {
+                $query->where('app_user_id', $appUser->id);
+            })
+            ->groupBy('item_id')
+            ->orderByDesc('total_quantity')
+            ->orderByDesc('line_count')
+            ->orderBy('item_id')
+            ->first();
+
+        $topItem = null;
+        if ($topItemRow) {
+            $item = Item::find($topItemRow->item_id);
+            if ($item) {
+                $this->applyItemImageUrls($item);
+            }
+            $topItem = [
+                'item_id' => $topItemRow->item_id,
+                'total_quantity' => (int) $topItemRow->total_quantity,
+                'line_count' => (int) $topItemRow->line_count,
+                'item' => $item,
+            ];
+        }
+
+        return response()->json([
+            'message' => $lastOrder ? 'Last order fetched successfully.' : 'No orders found for this user.',
+            'data' => [
+                'last_order' => $lastOrder,
+                'top_item' => $topItem,
+            ],
+        ]);
     }
 
     public function vendorStartCooking(Request $request, $id): JsonResponse
@@ -483,5 +539,36 @@ class OrderController extends Controller
     private function findOrderOrFail($id): Order
     {
         return Order::findOrFail($id);
+    }
+
+    private function applyItemImageUrls(Item $item): Item
+    {
+        $item->photos = $this->toPublicUrl($item->photos);
+
+        return $item;
+    }
+
+    private function toPublicUrl($value)
+    {
+        if (empty($value)) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            return array_map(function ($item) {
+                return $this->toPublicUrl($item);
+            }, $value);
+        }
+
+        if (preg_match('#^https?://#i', $value)) {
+            return $value;
+        }
+
+        $path = ltrim($value, '/');
+        if (str_starts_with($path, 'storage/')) {
+            return rtrim(config('app.url'), '/') . '/' . $path;
+        }
+
+        return rtrim(config('app.url'), '/') . '/storage/app/public/' . $path;
     }
 }
