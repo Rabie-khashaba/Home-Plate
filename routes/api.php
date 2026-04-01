@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DeliveryAuthController;
 use App\Http\Controllers\Api\GeneralRequestController;
 use App\Http\Controllers\Api\GeneralSettingController;
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
+use App\Http\Controllers\Api\VendorController as ApiVendorController;
 use App\Http\Controllers\Api\VendorAuthController;
 /*
 |--------------------------------------------------------------------------
@@ -55,6 +56,8 @@ Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
     Route::get('/vendor/{id}', [ApiProfileController::class, 'vendor']);
     Route::get('/delivery/{id}', [ApiProfileController::class, 'delivery']);
 });
+
+Route::middleware('auth:sanctum')->get('/vendors', [ApiVendorController::class, 'index']);
 
 Route::prefix('general')->group(function () {
     Route::get('/categories', [GeneralRequestController::class, 'categories']);
