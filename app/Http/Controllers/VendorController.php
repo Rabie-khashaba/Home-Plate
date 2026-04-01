@@ -39,7 +39,7 @@ class VendorController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate($this->vendorRules());
-        
+
         foreach ($this->imageFields() as $field) {
             if ($request->hasFile($field)) {
                 $validated[$field] = $request->file($field)->store('vendors', 'public');
@@ -152,6 +152,10 @@ class VendorController extends Controller
             'id_front' => 'nullable|image|max:4096',
             'id_back' => 'nullable|image|max:4096',
             'restaurant_info' => 'nullable|string',
+            'tax_card_number' => 'nullable|string|max:255',
+            'tax_card_image' => 'nullable|image|max:4096',
+            'commercial_register_number' => 'nullable|string|max:255',
+            'commercial_register_image' => 'nullable|image|max:4096',
             'main_photo' => 'nullable|image|max:4096',
             'restaurant_name' => 'required|string|max:255',
             'city_id' => 'required|exists:cities,id',
@@ -186,6 +190,8 @@ class VendorController extends Controller
         return [
             'id_front',
             'id_back',
+            'tax_card_image',
+            'commercial_register_image',
             'main_photo',
             'kitchen_photo_1',
             'kitchen_photo_2',

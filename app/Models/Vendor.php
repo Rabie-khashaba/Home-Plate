@@ -21,6 +21,10 @@ class Vendor extends Authenticatable
         'id_front',
         'id_back',
         'restaurant_info',
+        'tax_card_number',
+        'tax_card_image',
+        'commercial_register_number',
+        'commercial_register_image',
         'main_photo',
         'restaurant_name',
         'city_id',
@@ -34,7 +38,7 @@ class Vendor extends Authenticatable
         'status',
         'is_active',
     ];
-    
+
     protected $casts = [
          'is_active' => 'boolean',
          'otp_expires_at' => 'datetime',
@@ -64,7 +68,7 @@ class Vendor extends Authenticatable
     {
         return $this->hasMany(Order::class);
     }
-    
+
         // 🔹 التشفير
     public function setPasswordAttribute($value)
     {

@@ -149,6 +149,32 @@
         </div>
 
         <div>
+            <label>Tax Card Number</label>
+            <input type="text" name="tax_card_number" value="{{ old('tax_card_number', $vendor->tax_card_number) }}" class="form-input" />
+        </div>
+
+        <div>
+            <label>Commercial Register Number</label>
+            <input type="text" name="commercial_register_number" value="{{ old('commercial_register_number', $vendor->commercial_register_number) }}" class="form-input" />
+        </div>
+
+        <div>
+            <label>Tax Card Image</label>
+            <input type="file" name="tax_card_image" class="form-input" />
+            @if($vendor->tax_card_image)
+                <img src="{{ asset('storage/app/public/'.$vendor->tax_card_image) }}" class="w-20 h-20 mt-2 rounded object-cover">
+            @endif
+        </div>
+
+        <div>
+            <label>Commercial Register Image</label>
+            <input type="file" name="commercial_register_image" class="form-input" />
+            @if($vendor->commercial_register_image)
+                <img src="{{ asset('storage/app/public/'.$vendor->commercial_register_image) }}" class="w-20 h-20 mt-2 rounded object-cover">
+            @endif
+        </div>
+
+        <div>
             <label>Location</label>
             <input type="text" name="location" value="{{ old('location', $vendor->location) }}" class="form-input" />
         </div>

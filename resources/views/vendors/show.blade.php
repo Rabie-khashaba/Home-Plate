@@ -136,6 +136,8 @@
                     <div><strong>Area:</strong> {{ $vendor->area->name_en ?? '-' }}</div>
                     <div><strong>Full Name:</strong> {{ $vendor->full_name ?? '-' }}</div>
                     <div><strong>Restaurant Name:</strong> {{ $vendor->restaurant_name ?? '-' }}</div>
+                    <div><strong>Tax Card Number:</strong> {{ $vendor->tax_card_number ?? '-' }}</div>
+                    <div><strong>Commercial Register Number:</strong> {{ $vendor->commercial_register_number ?? '-' }}</div>
                     <div class="md:col-span-2"><strong>Restaurant Info:</strong> {{ $vendor->restaurant_info ?? '-' }}</div>
                     <div>
                         <strong>Location:</strong>
@@ -153,6 +155,8 @@
                     @foreach ([
                         'ID Front' => $vendor->id_front,
                         'ID Back' => $vendor->id_back,
+                        'Tax Card Image' => $vendor->tax_card_image,
+                        'Commercial Register Image' => $vendor->commercial_register_image,
                         'Kitchen Photo 1' => $vendor->kitchen_photo_1,
                         'Kitchen Photo 2' => $vendor->kitchen_photo_2,
                         'Kitchen Photo 3' => $vendor->kitchen_photo_3,

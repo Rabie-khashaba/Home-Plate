@@ -43,6 +43,8 @@ class ProfileController extends Controller
             'data' => $this->withImageUrls($vendor, [
                 'id_front',
                 'id_back',
+                'tax_card_image',
+                'commercial_register_image',
                 'main_photo',
                 'kitchen_photo_1',
                 'kitchen_photo_2',
@@ -276,6 +278,8 @@ class ProfileController extends Controller
         return [
             'id_front',
             'id_back',
+            'tax_card_image',
+            'commercial_register_image',
             'main_photo',
             'kitchen_photo_1',
             'kitchen_photo_2',

@@ -126,6 +126,26 @@
         </div>
 
         <div>
+            <label>Tax Card Number</label>
+            <input type="text" name="tax_card_number" class="form-input" value="{{ old('tax_card_number') }}" />
+        </div>
+
+        <div>
+            <label>Commercial Register Number</label>
+            <input type="text" name="commercial_register_number" class="form-input" value="{{ old('commercial_register_number') }}" />
+        </div>
+
+        <div>
+            <label>Tax Card Image</label>
+            <input type="file" name="tax_card_image" class="form-input" />
+        </div>
+
+        <div>
+            <label>Commercial Register Image</label>
+            <input type="file" name="commercial_register_image" class="form-input" />
+        </div>
+
+        <div>
             <label>Location</label>
             <input type="text" name="location" class="form-input" value="{{ old('location') }}" />
         </div>
