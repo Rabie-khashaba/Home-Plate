@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AppUserAuthController;
 use App\Http\Controllers\Api\DeliveryAuthController;
 use App\Http\Controllers\Api\GeneralRequestController;
 use App\Http\Controllers\Api\GeneralSettingController;
+use App\Http\Controllers\Api\ItemController as ApiItemController;
 use App\Http\Controllers\Api\AddressController as ApiAddressController;
 use App\Http\Controllers\Api\OrderController as ApiOrderController;
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
@@ -71,6 +72,9 @@ Route::middleware('auth:sanctum')->post('/addresses/vendor/{id}', [ApiAddressCon
 Route::prefix('general')->group(function () {
     Route::get('/categories', [GeneralRequestController::class, 'categories']);
     Route::get('/subcategories', [GeneralRequestController::class, 'subcategories']);
+    Route::get('/vendors/by-category/{categoryId}', [ApiVendorController::class, 'byCategory']);
+    Route::get('/vendors/by-item/{itemId}', [ApiVendorController::class, 'byItem']);
+    Route::get('/items/by-subcategory/{subcategoryId}', [ApiItemController::class, 'bySubcategory']);
     Route::get('/countries', [GeneralRequestController::class, 'countries']);
     Route::get('/cities', [GeneralRequestController::class, 'cities']);
     Route::get('/areas', [GeneralRequestController::class, 'areas']);

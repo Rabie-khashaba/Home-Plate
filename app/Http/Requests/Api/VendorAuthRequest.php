@@ -77,7 +77,7 @@ class VendorAuthRequest extends FormRequest
             'commercial_register_image' => 'nullable|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'main_photo' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'restaurant_name' => 'required|string|max:255',
-            'category_ids' => 'required|array|min:1',
+            'category_ids' => 'nullable|array|min:1',
             'category_ids.*' => 'exists:categories,id',
             'city_id' => 'required|exists:cities,id',
             'area_id' => 'required|exists:areas,id',

@@ -92,6 +92,7 @@ class ItemController extends Controller
         $validated['photos'] = $this->storePhotos($request->file('photos'));
 
         $item = Item::create($validated);
+        $item->vendor?->categories()->syncWithoutDetaching([$validated['category_id']]);
         ActivityLogger::log('created', 'Added item: ' . $item->name, $item);
 
         return redirect()->route('items.index')->with('success', 'Item created and awaiting approval.');
@@ -153,6 +154,7 @@ class ItemController extends Controller
         }
 
         $item->update($validated);
+        $item->vendor?->categories()->syncWithoutDetaching([$item->category_id]);
         ActivityLogger::log('updated', 'Updated item: ' . $item->name, $item);
 
         return redirect()->route('items.index')->with('success', 'Item updated successfully.');

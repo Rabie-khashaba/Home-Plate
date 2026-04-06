@@ -37,6 +37,25 @@ class ItemController extends Controller
         ]);
     }
 
+    public function bySubcategory(int $subcategoryId)
+    {
+        Subcategory::query()->findOrFail($subcategoryId);
+
+        $items = $this->publicItemsQuery()
+            ->where('subcategory_id', $subcategoryId)
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'message' => $items->isEmpty()
+                ? 'No items found for this subcategory.'
+                : 'Items fetched successfully.',
+            'data' => $items->map(function (Item $item) {
+                return $this->withImageUrls($item);
+            })->values(),
+        ]);
+    }
+
     public function indexApproved(Request $request)
     {
 
@@ -100,6 +119,7 @@ class ItemController extends Controller
         $validated['photos'] = $this->storePhotos($request->file('photos'));
 
         $item = Item::create($validated);
+        $vendor->categories()->syncWithoutDetaching([$validated['category_id']]);
 
         return response()->json([
             'message' => 'Item created successfully and awaiting approval.',
@@ -142,6 +162,12 @@ class ItemController extends Controller
         }
 
         $item->update($validated);
+
+        $vendorId = $validated['vendor_id'] ?? $item->vendor_id;
+        $itemVendor = Vendor::find($vendorId);
+        if ($itemVendor && ! empty($item->category_id)) {
+            $itemVendor->categories()->syncWithoutDetaching([$item->category_id]);
+        }
 
         return response()->json([
             'message' => 'Item updated successfully.',

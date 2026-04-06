@@ -15,6 +15,7 @@ class GeneralRequestController extends Controller
     public function categories()
     {
         $categories = Category::query()
+            ->with('items')
             ->latest()
             ->get()
             ->map(function (Category $category) {
@@ -22,6 +23,19 @@ class GeneralRequestController extends Controller
                 $data['photo'] = $category->photo
                     ? asset('storage/app/public/' . ltrim($category->photo, '/'))
                     : null;
+                $data['items'] = $category->items->map(function ($item) {
+                    $itemData = $item->toArray();
+
+                    if (! empty($itemData['photos']) && is_array($itemData['photos'])) {
+                        $itemData['photos'] = array_map(function ($photo) {
+                            return asset('storage/app/public/' . ltrim($photo, '/'));
+                        }, $itemData['photos']);
+                    }
+
+                    unset($itemData['vendor'], $itemData['category'], $itemData['subcategory']);
+
+                    return $itemData;
+                })->values();
 
                 return $data;
             });

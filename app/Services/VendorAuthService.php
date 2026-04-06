@@ -48,7 +48,7 @@ class VendorAuthService
                 'commercial_register_image' => $data['commercial_register_image'] ?? null,
                 'main_photo' => $data['main_photo'] ?? null,
                 'restaurant_name' => $data['restaurant_name'],
-                'category_ids' => $data['category_ids'],
+                'category_ids' => $data['category_ids'] ?? [],
                 'city_id' => $data['city_id'],
                 'area_id' => $data['area_id'],
                 'delivery_address' => $data['delivery_address'],
