@@ -14,7 +14,17 @@ class GeneralRequestController extends Controller
 {
     public function categories()
     {
-        $categories = Category::query()->latest()->get();
+        $categories = Category::query()
+            ->latest()
+            ->get()
+            ->map(function (Category $category) {
+                $data = $category->toArray();
+                $data['photo'] = $category->photo
+                    ? asset('storage/app/public/' . ltrim($category->photo, '/'))
+                    : null;
+
+                return $data;
+            });
 
         return response()->json([
             'message' => 'Categories fetched successfully.',
