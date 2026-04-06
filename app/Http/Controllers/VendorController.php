@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Area;
+use App\Models\Category;
 use App\Models\City;
 use App\Models\Vendor;
 use Illuminate\Http\Request;
@@ -24,7 +25,7 @@ class VendorController extends Controller
 
     public function index(Request $request)
     {
-        $query = Vendor::with(['city', 'area']);
+        $query = Vendor::with(['categories', 'city', 'area']);
 
         // Search
         if ($search = $request->get('search')) {
@@ -78,15 +79,18 @@ class VendorController extends Controller
 
     public function create()
     {
+        $categories = Category::orderBy('name_en')->get();
         $cities = City::all();
         $areas = Area::all();
 
-        return view('vendors.create', compact('cities', 'areas'));
+        return view('vendors.create', compact('categories', 'cities', 'areas'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate($this->vendorRules());
+        $categoryIds = $validated['category_ids'];
+        unset($validated['category_ids']);
 
         foreach ($this->imageFields() as $field) {
             if ($request->hasFile($field)) {
@@ -98,7 +102,10 @@ class VendorController extends Controller
         $validated['is_active'] = false;
         $validated['working_time'] = $this->normalizeWorkingTime($validated['working_time'] ?? null);
 
+        $validated['category_id'] = $categoryIds[0] ?? null;
+
         $vendor = Vendor::create($validated);
+        $vendor->categories()->sync($categoryIds);
         ActivityLogger::log('created', 'Created vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
 
         return redirect()->route('vendors.index')->with('success', 'Vendor created successfully and awaiting approval.');
@@ -106,22 +113,25 @@ class VendorController extends Controller
 
     public function show(Vendor $vendor)
     {
-        $vendor->load(['city', 'area']);
+        $vendor->load(['categories', 'city', 'area']);
 
         return view('vendors.show', compact('vendor'));
     }
 
     public function edit(Vendor $vendor)
     {
+        $categories = Category::orderBy('name_en')->get();
         $cities = City::all();
         $areas = Area::all();
 
-        return view('vendors.edit', compact('vendor', 'cities', 'areas'));
+        return view('vendors.edit', compact('vendor', 'categories', 'cities', 'areas'));
     }
 
     public function update(Request $request, Vendor $vendor)
     {
         $validated = $request->validate($this->vendorRules($vendor));
+        $categoryIds = $validated['category_ids'];
+        unset($validated['category_ids']);
 
         foreach ($this->imageFields() as $field) {
             if ($request->hasFile($field)) {
@@ -140,7 +150,10 @@ class VendorController extends Controller
             $validated['is_active'] = false;
         }
 
+        $validated['category_id'] = $categoryIds[0] ?? null;
+
         $vendor->update($validated);
+        $vendor->categories()->sync($categoryIds);
         ActivityLogger::log('updated', 'Updated vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
 
         return redirect()->route('vendors.index')->with('success', 'Vendor updated successfully.');
@@ -212,6 +225,8 @@ class VendorController extends Controller
             'commercial_register_image' => 'nullable|image|max:4096',
             'main_photo' => 'nullable|image|max:4096',
             'restaurant_name' => 'required|string|max:255',
+            'category_ids' => 'required|array|min:1',
+            'category_ids.*' => 'exists:categories,id',
             'city_id' => 'required|exists:cities,id',
             'area_id' => 'required|exists:areas,id',
             'delivery_address' => 'required|string',

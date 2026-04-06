@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Item;
+use App\Models\Subcategory;
 use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -14,7 +15,7 @@ class ItemController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Item::with(['vendor', 'category']);
+        $query = Item::with(['vendor', 'category', 'subcategory']);
         $dateFilter = $request->get('date_filter');
         $from = $request->get('from');
         $to   = $request->get('to');
@@ -60,15 +61,16 @@ class ItemController extends Controller
     {
         $vendors = Vendor::orderBy('restaurant_name')->get();
         $categories = Category::orderBy('name_en')->get();
+        $subcategories = Subcategory::with('category')->orderBy('name_en')->get();
 
-        return view('items.create', compact('vendors', 'categories'));
+        return view('items.create', compact('vendors', 'categories', 'subcategories'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
-            'category_id' => 'required|exists:categories,id',
+            'subcategory_id' => 'required|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
@@ -80,6 +82,9 @@ class ItemController extends Controller
             'photos' => 'required|array|size:4',
             'photos.*' => 'required|image|max:4096',
         ]);
+
+        $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
+        $validated['category_id'] = $subcategory->category_id;
 
         $validated['approval_status'] = 'approved';
         $validated['availability_status'] = 'paused';
@@ -94,7 +99,7 @@ class ItemController extends Controller
 
     public function show(Item $item)
     {
-        $item->load(['vendor', 'category']);
+        $item->load(['vendor', 'category', 'subcategory']);
 
         return view('items.show', compact('item'));
     }
@@ -103,15 +108,16 @@ class ItemController extends Controller
     {
         $vendors = Vendor::orderBy('restaurant_name')->get();
         $categories = Category::orderBy('name_en')->get();
+        $subcategories = Subcategory::with('category')->orderBy('name_en')->get();
 
-        return view('items.edit', compact('item', 'vendors', 'categories'));
+        return view('items.edit', compact('item', 'vendors', 'categories', 'subcategories'));
     }
 
     public function update(Request $request, Item $item)
     {
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
-            'category_id' => 'required|exists:categories,id',
+            'subcategory_id' => 'required|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
@@ -125,6 +131,9 @@ class ItemController extends Controller
             'photos' => 'nullable|array|size:4',
             'photos.*' => 'required_with:photos|image|max:4096',
         ]);
+
+        $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
+        $validated['category_id'] = $subcategory->category_id;
 
         if ($request->hasFile('photos')) {
             $this->deletePhotos($item->photos ?? []);

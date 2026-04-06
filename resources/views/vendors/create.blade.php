@@ -49,6 +49,16 @@
             <input type="text" name="restaurant_name" class="form-input" value="{{ old('restaurant_name') }}" required />
         </div>
 
+        <div>
+            <label>Categories</label>
+            <select name="category_ids[]" class="form-input" multiple required size="5">
+                @foreach($categories as $category)
+                    <option value="{{ $category->id }}" {{ in_array($category->id, old('category_ids', [])) ? 'selected' : '' }}>{{ $category->name_en }}</option>
+                @endforeach
+            </select>
+            <small class="text-gray-500">Hold Ctrl or Cmd to select more than one category.</small>
+        </div>
+
         <div class="md:col-span-2">
             <div class="mb-3">
                 <label class="mb-1 block text-base font-semibold">Working Schedule</label>

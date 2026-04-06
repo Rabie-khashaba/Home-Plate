@@ -117,6 +117,7 @@
                     <th>Restaurant</th>
                     <th>Owner</th>
                     <th>Phone</th>
+                    <th>Categories</th>
                     <th>City</th>
                     <th>Status</th>
                     <th>Active</th>
@@ -142,6 +143,7 @@
                     </td>
                     <td>{{ $vendor->full_name ?? '—' }}</td>
                     <td>{{ $vendor->phone }}</td>
+                    <td>{{ $vendor->categories->pluck('name_en')->filter()->join(', ') ?: '—' }}</td>
                     <td>{{ $vendor->city?->name_en ?? '—' }}</td>
                     <td>
                         @php
@@ -185,7 +187,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="text-center text-gray-400 py-12">
+                    <td colspan="10" class="text-center text-gray-400 py-12">
                         <svg class="mx-auto mb-2 text-gray-300" width="48" height="48" viewBox="0 0 24 24" fill="none">
                             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.5"/>
                         </svg>

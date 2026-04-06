@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Models\Item;
+use App\Models\Subcategory;
 use App\Models\Vendor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -42,7 +42,7 @@ class ItemController extends Controller
 
         $vendor = $this->ensureVendor($request);
 
-        $items = Item::with(['vendor', 'category'])
+        $items = Item::with(['vendor', 'category', 'subcategory'])
             ->where('vendor_id', $vendor->id)
             ->where('approval_status', 'approved')
             ->latest()
@@ -60,7 +60,7 @@ class ItemController extends Controller
     {
         $vendor = $this->ensureVendor($request);
 
-        $items = Item::with(['vendor', 'category'])
+        $items = Item::with(['vendor', 'category', 'subcategory'])
             ->where('vendor_id', $vendor->id)
             ->latest()
             ->get();
@@ -78,7 +78,7 @@ class ItemController extends Controller
         $vendor = $this->ensureVendor($request);
 
         $validated = $request->validate([
-            'category_id' => 'required|exists:categories,id',
+            'subcategory_id' => 'required|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
@@ -91,7 +91,9 @@ class ItemController extends Controller
             'photos.*' => 'required|image|max:4096',
         ]);
 
+        $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
         $validated['vendor_id'] = $vendor->id;
+        $validated['category_id'] = $subcategory->category_id;
         $validated['approval_status'] = 'pending';
         $validated['availability_status'] = 'paused';
         $validated['max_orders_per_day'] = $validated['max_orders_per_day'] ?? $validated['stock'];
@@ -101,7 +103,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item created successfully and awaiting approval.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
         ], 201);
     }
 
@@ -112,7 +114,7 @@ class ItemController extends Controller
         $item = Item::where('vendor_id', $vendor->id)->findOrFail($id);
 
         $validated = $request->validate([
-            'category_id' => 'nullable|exists:categories,id',
+            'subcategory_id' => 'nullable|exists:subcategories,id',
             'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'price' => 'nullable|numeric|min:0',
@@ -124,6 +126,11 @@ class ItemController extends Controller
             'photos' => 'nullable|array|size:4',
             'photos.*' => 'required_with:photos|image|max:4096',
         ]);
+
+        if (array_key_exists('subcategory_id', $validated)) {
+            $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
+            $validated['category_id'] = $subcategory->category_id;
+        }
 
         if ($request->hasFile('photos')) {
             $this->deletePhotos($item->photos ?? []);
@@ -138,7 +145,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item updated successfully.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
         ]);
     }
 
@@ -153,7 +160,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item approved.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
         ]);
     }
 
@@ -168,7 +175,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item rejected.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
         ]);
     }
 
@@ -195,7 +202,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item published.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
         ]);
     }
 
@@ -216,13 +223,13 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item paused.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
         ]);
     }
 
     private function publicItemsQuery()
     {
-        return Item::with(['vendor', 'category'])
+        return Item::with(['vendor', 'category', 'subcategory'])
             ->where('approval_status', 'approved')
             ->where('availability_status', 'published');
     }

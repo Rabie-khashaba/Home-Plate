@@ -14,7 +14,8 @@
                 <tr>
                     <th>#</th>
                     <th>Name</th>
-                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Subcategory</th>
                     <th>Price</th>
                     <th>Vendor</th>
                     <th>Created</th>
@@ -29,6 +30,7 @@
                     <td>{{ $items->firstItem() + $key }}</td>
                     <td>{{ $item->name }}</td>
                     <td>{{ $item->category->name_en ?? '-' }}</td>
+                    <td>{{ $item->subcategory->name_en ?? '-' }}</td>
                     <td>{{ $item->price }}</td>
                     <td>{{ $item->vendor->full_name ?? '-' }}</td>
                     <td>{{ $item->created_at?->format('Y-m-d') }}</td>

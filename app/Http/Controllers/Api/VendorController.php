@@ -9,7 +9,7 @@ class VendorController extends Controller
 {
     public function index()
     {
-        $vendors = Vendor::with(['city', 'area'])->latest()->get();
+        $vendors = Vendor::with(['categories', 'city', 'area'])->latest()->get();
 
         $vendors = $vendors->map(function (Vendor $vendor) {
             $data = $vendor->makeHidden(['password', 'otp_code', 'otp_expires_at'])->toArray();

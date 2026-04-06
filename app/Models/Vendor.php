@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -28,6 +30,7 @@ class Vendor extends Authenticatable
         'commercial_register_image',
         'main_photo',
         'restaurant_name',
+        'category_id',
         'city_id',
         'area_id',
         'delivery_address',
@@ -53,6 +56,16 @@ class Vendor extends Authenticatable
     public function city()
     {
         return $this->belongsTo(City::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class);
     }
 
     public function area()

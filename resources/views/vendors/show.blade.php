@@ -134,6 +134,7 @@
                     </div>
                     <div><strong>City:</strong> {{ $vendor->city->name_en ?? '-' }}</div>
                     <div><strong>Area:</strong> {{ $vendor->area->name_en ?? '-' }}</div>
+                    <div><strong>Categories:</strong> {{ $vendor->categories->pluck('name_en')->filter()->join(', ') ?: '-' }}</div>
                     <div><strong>Full Name:</strong> {{ $vendor->full_name ?? '-' }}</div>
                     <div><strong>Restaurant Name:</strong> {{ $vendor->restaurant_name ?? '-' }}</div>
                     <div><strong>Tax Card Number:</strong> {{ $vendor->tax_card_number ?? '-' }}</div>

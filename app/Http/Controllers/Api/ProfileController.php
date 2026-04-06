@@ -36,7 +36,7 @@ class ProfileController extends Controller
 
     public function vendor(int $id)
     {
-        $vendor = Vendor::with(['city', 'area', 'addresses'])->findOrFail($id);
+        $vendor = Vendor::with(['categories', 'city', 'area', 'addresses'])->findOrFail($id);
 
         return response()->json([
             'message' => 'Vendor profile fetched successfully.',
@@ -128,6 +128,8 @@ class ProfileController extends Controller
             'commercial_register_image' => 'nullable|image|max:4096',
             'main_photo' => 'nullable|image|max:4096',
             'restaurant_name' => 'nullable|string|max:255',
+            'category_ids' => 'nullable|array|min:1',
+            'category_ids.*' => 'exists:categories,id',
             'city_id' => 'nullable|exists:cities,id',
             'area_id' => 'nullable|exists:areas,id',
             'delivery_address' => 'nullable|string',
@@ -150,11 +152,22 @@ class ProfileController extends Controller
             }
         }
 
+        $categoryIds = $validated['category_ids'] ?? null;
+        unset($validated['category_ids']);
+
+        if (is_array($categoryIds)) {
+            $validated['category_id'] = $categoryIds[0] ?? null;
+        }
+
         $vendor->update($validated);
+
+        if (is_array($categoryIds)) {
+            $vendor->categories()->sync($categoryIds);
+        }
 
         return response()->json([
             'message' => 'Vendor updated successfully.',
-            'data' => $this->withImageUrls($vendor->fresh(['city', 'area']), $this->vendorImageFields()),
+            'data' => $this->withImageUrls($vendor->fresh(['categories', 'city', 'area']), $this->vendorImageFields()),
         ]);
     }
 

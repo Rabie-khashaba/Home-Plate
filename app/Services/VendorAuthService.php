@@ -48,6 +48,7 @@ class VendorAuthService
                 'commercial_register_image' => $data['commercial_register_image'] ?? null,
                 'main_photo' => $data['main_photo'] ?? null,
                 'restaurant_name' => $data['restaurant_name'],
+                'category_ids' => $data['category_ids'],
                 'city_id' => $data['city_id'],
                 'area_id' => $data['area_id'],
                 'delivery_address' => $data['delivery_address'],
@@ -93,7 +94,16 @@ class VendorAuthService
             ]);
         }
 
-        $vendor = Vendor::create($cached['payload']);
+        $payload = $cached['payload'];
+        $categoryIds = $payload['category_ids'] ?? [];
+        unset($payload['category_ids']);
+
+        $payload['category_id'] = is_array($categoryIds) ? ($categoryIds[0] ?? null) : null;
+
+        $vendor = Vendor::create($payload);
+        if (is_array($categoryIds) && ! empty($categoryIds)) {
+            $vendor->categories()->sync($categoryIds);
+        }
         Cache::forget($this->registerKey($phone));
 
         $token = $vendor->createToken('vendor_token')->plainTextToken;
