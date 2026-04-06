@@ -9,19 +9,53 @@ use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Services\ActivityLogger;
 
 class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $orders = Order::with(['appUser', 'vendor', 'delivery', 'orderItems'])
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
-            ->when($request->filled('order_number'), fn ($q) => $q->where('order_number', 'like', '%' . $request->string('order_number')->toString() . '%'))
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
+        $query = Order::with(['appUser', 'vendor', 'delivery', 'orderItems']);
+        $dateFilter = $request->get('date_filter');
+        $from = $request->get('from');
+        $to   = $request->get('to');
 
-        return view('orders.index', compact('orders'));
+        if ($request->filled('search')) {
+            $s = $request->get('search');
+            $query->where(fn($q) => $q->where('order_number', 'like', "%{$s}%")
+                                      ->orWhereHas('appUser', fn($u) => $u->where('name', 'like', "%{$s}%")
+                                                                          ->orWhere('phone', 'like', "%{$s}%")));
+        }
+
+        if ($request->filled('status')) $query->where('status', $request->get('status'));
+
+        match($dateFilter) {
+            'today'      => $query->whereDate('created_at', today()),
+            'yesterday'  => $query->whereDate('created_at', today()->subDay()),
+            'last_week'  => $query->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]),
+            'last_month' => $query->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]),
+            'custom'     => $query->when($from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                                  ->when($to,   fn($q) => $q->whereDate('created_at', '<=', $to)),
+            default      => null,
+        };
+
+        $orders = $query->latest()->paginate(15)->withQueryString();
+
+        $sq = fn() => Order::when($dateFilter === 'today',      fn($q) => $q->whereDate('created_at', today()))
+                           ->when($dateFilter === 'yesterday',  fn($q) => $q->whereDate('created_at', today()->subDay()))
+                           ->when($dateFilter === 'last_week',  fn($q) => $q->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]))
+                           ->when($dateFilter === 'last_month', fn($q) => $q->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]))
+                           ->when($dateFilter === 'custom' && $from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                           ->when($dateFilter === 'custom' && $to,   fn($q) => $q->whereDate('created_at', '<=', $to));
+
+        $stats = [
+            'total'     => $sq()->count(),
+            'pending'   => $sq()->where('status', 'pending_vendor_preparation')->count(),
+            'delivered' => $sq()->where('status', 'delivered')->count(),
+            'cancelled' => $sq()->where('status', 'cancelled')->count(),
+        ];
+
+        return view('orders.index', compact('orders', 'stats'));
     }
 
     public function create()
@@ -230,6 +264,7 @@ class OrderController extends Controller
             $order->orderItems()->delete();
             $order->orderItems()->createMany($orderLines);
         });
+        ActivityLogger::log('updated', 'Updated order: ' . $order->order_number, $order);
 
         return redirect()
             ->route('orders.show', $order)

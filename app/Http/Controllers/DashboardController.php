@@ -17,17 +17,30 @@ class DashboardController extends Controller
         $deliveriesCount = Delivery::count();
         $ordersCount = Order::count();
 
+        $todayStart = now()->startOfDay();
         $lastWeekStart = now()->subDays(7);
+
+        $ordersDateQuery = static function ($query, $from) {
+            $query->where(function ($subQuery) use ($from) {
+                $subQuery->whereNotNull('ordered_at')->where('ordered_at', '>=', $from)
+                    ->orWhere(function ($fallbackQuery) use ($from) {
+                        $fallbackQuery->whereNull('ordered_at')->where('created_at', '>=', $from);
+                    });
+            });
+        };
 
         $usersLastWeek = AppUser::where('created_at', '>=', $lastWeekStart)->count();
         $vendorsLastWeek = Vendor::where('created_at', '>=', $lastWeekStart)->count();
         $deliveriesLastWeek = Delivery::where('created_at', '>=', $lastWeekStart)->count();
-        $ordersLastWeek = Order::where(function ($query) use ($lastWeekStart) {
-            $query->whereNotNull('ordered_at')->where('ordered_at', '>=', $lastWeekStart)
-                ->orWhere(function ($sub) use ($lastWeekStart) {
-                    $sub->whereNull('ordered_at')->where('created_at', '>=', $lastWeekStart);
-                });
-        })->count();
+        $ordersLastWeek = Order::where(fn ($query) => $ordersDateQuery($query, $lastWeekStart))->count();
+        $ordersToday = Order::where(fn ($query) => $ordersDateQuery($query, $todayStart))->count();
+        $revenueToday = Order::where(fn ($query) => $ordersDateQuery($query, $todayStart))->sum('total_amount');
+        $pendingOrders = Order::where('status', Order::STATUS_PENDING_VENDOR_PREPARATION)->count();
+        $activeOrders = Order::whereNotIn('status', [Order::STATUS_DELIVERED, Order::STATUS_CANCELLED])->count();
+        $recentOrders = Order::with(['appUser', 'vendor'])
+            ->orderByRaw('COALESCE(ordered_at, created_at) desc')
+            ->limit(10)
+            ->get();
 
         $topVendors = Vendor::withCount('orders')
             ->orderByDesc('orders_count')
@@ -71,6 +84,11 @@ class DashboardController extends Controller
             'vendorsLastWeek' => $vendorsLastWeek,
             'deliveriesLastWeek' => $deliveriesLastWeek,
             'ordersLastWeek' => $ordersLastWeek,
+            'ordersToday' => $ordersToday,
+            'revenueToday' => $revenueToday,
+            'pendingOrders' => $pendingOrders,
+            'activeOrders' => $activeOrders,
+            'recentOrders' => $recentOrders,
             'topVendors' => $topVendors,
             'maxVendorOrders' => $maxVendorOrders,
             'chartLabels' => $chartLabels,

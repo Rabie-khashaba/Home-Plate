@@ -8,20 +8,52 @@ use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use App\Services\ActivityLogger;
 
 class ItemController extends Controller
 {
     public function index(Request $request)
     {
-        $itemsQuery = Item::with(['vendor', 'category'])->latest();
+        $query = Item::with(['vendor', 'category']);
+        $dateFilter = $request->get('date_filter');
+        $from = $request->get('from');
+        $to   = $request->get('to');
 
-        if ($request->filled('approval_status')) {
-            $itemsQuery->where('approval_status', $request->string('approval_status')->toString());
+        if ($search = $request->get('search')) {
+            $query->where(fn($q) => $q->where('name', 'like', "%{$search}%")
+                                      ->orWhereHas('vendor', fn($v) => $v->where('restaurant_name', 'like', "%{$search}%")));
         }
 
-        $items = $itemsQuery->paginate(10);
+        if ($request->filled('approval_status'))     $query->where('approval_status', $request->get('approval_status'));
+        if ($request->filled('availability_status')) $query->where('availability_status', $request->get('availability_status'));
 
-        return view('items.index', compact('items'));
+        match($dateFilter) {
+            'today'      => $query->whereDate('created_at', today()),
+            'yesterday'  => $query->whereDate('created_at', today()->subDay()),
+            'last_week'  => $query->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]),
+            'last_month' => $query->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]),
+            'custom'     => $query->when($from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                                  ->when($to,   fn($q) => $q->whereDate('created_at', '<=', $to)),
+            default      => null,
+        };
+
+        $items = $query->latest()->paginate(15)->withQueryString();
+
+        $sq = fn() => Item::when($dateFilter === 'today',      fn($q) => $q->whereDate('created_at', today()))
+                          ->when($dateFilter === 'yesterday',  fn($q) => $q->whereDate('created_at', today()->subDay()))
+                          ->when($dateFilter === 'last_week',  fn($q) => $q->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]))
+                          ->when($dateFilter === 'last_month', fn($q) => $q->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]))
+                          ->when($dateFilter === 'custom' && $from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                          ->when($dateFilter === 'custom' && $to,   fn($q) => $q->whereDate('created_at', '<=', $to));
+
+        $stats = [
+            'total'     => $sq()->count(),
+            'approved'  => $sq()->where('approval_status', 'approved')->count(),
+            'pending'   => $sq()->where('approval_status', 'pending')->count(),
+            'published' => $sq()->where('availability_status', 'published')->count(),
+        ];
+
+        return view('items.index', compact('items', 'stats'));
     }
 
     public function create()
@@ -54,7 +86,8 @@ class ItemController extends Controller
         $validated['max_orders_per_day'] = $validated['max_orders_per_day'] ?? $validated['stock'];
         $validated['photos'] = $this->storePhotos($request->file('photos'));
 
-        Item::create($validated);
+        $item = Item::create($validated);
+        ActivityLogger::log('created', 'Added item: ' . $item->name, $item);
 
         return redirect()->route('items.index')->with('success', 'Item created and awaiting approval.');
     }
@@ -111,6 +144,7 @@ class ItemController extends Controller
         }
 
         $item->update($validated);
+        ActivityLogger::log('updated', 'Updated item: ' . $item->name, $item);
 
         return redirect()->route('items.index')->with('success', 'Item updated successfully.');
     }
@@ -118,6 +152,7 @@ class ItemController extends Controller
     public function destroy(Item $item)
     {
         $this->deletePhotos($item->photos ?? []);
+        ActivityLogger::log('deleted', 'Deleted item: ' . $item->name, $item);
         $item->delete();
 
         return redirect()->route('items.index')->with('success', 'Item deleted successfully.');
@@ -129,6 +164,7 @@ class ItemController extends Controller
         $item->approval_status = 'approved';
         $item->availability_status = 'paused';
         $item->save();
+        ActivityLogger::log('approved', 'Approved item: ' . $item->name, $item);
 
         return redirect()->back()->with('success', 'Item approved successfully.');
     }
@@ -139,6 +175,7 @@ class ItemController extends Controller
         $item->approval_status = 'rejected';
         $item->availability_status = 'paused';
         $item->save();
+        ActivityLogger::log('rejected', 'Rejected item: ' . $item->name, $item);
 
         return redirect()->back()->with('error', 'Item rejected.');
     }

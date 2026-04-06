@@ -8,13 +8,60 @@ use App\Models\Area;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use App\Services\ActivityLogger;
 
 class AppUserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $users = AppUser::with(['city', 'area'])->paginate(10);
-        return view('app_users.index', compact('users'));
+        $query = AppUser::with(['city', 'area']);
+
+        // Search
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name',  'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        // Date filter
+        $dateFilter = $request->get('date_filter');
+        $from       = $request->get('from');
+        $to         = $request->get('to');
+
+        match($dateFilter) {
+            'today'      => $query->whereDate('created_at', today()),
+            'yesterday'  => $query->whereDate('created_at', today()->subDay()),
+            'last_week'  => $query->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]),
+            'last_month' => $query->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]),
+            'custom'     => $query->when($from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                                  ->when($to,   fn($q) => $q->whereDate('created_at', '<=', $to)),
+            default      => null,
+        };
+
+        // Status filter
+        if ($request->get('status') === 'active')   $query->where('is_active', true);
+        if ($request->get('status') === 'inactive') $query->where('is_active', false);
+
+        $users = $query->latest()->paginate(15)->withQueryString();
+
+        // Stats — apply same date filter
+        $statsQuery = fn() => AppUser::when($dateFilter === 'today',      fn($q) => $q->whereDate('created_at', today()))
+                                     ->when($dateFilter === 'yesterday',  fn($q) => $q->whereDate('created_at', today()->subDay()))
+                                     ->when($dateFilter === 'last_week',  fn($q) => $q->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]))
+                                     ->when($dateFilter === 'last_month', fn($q) => $q->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]))
+                                     ->when($dateFilter === 'custom' && $from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                                     ->when($dateFilter === 'custom' && $to,   fn($q) => $q->whereDate('created_at', '<=', $to));
+
+        $stats = [
+            'total'    => $statsQuery()->count(),
+            'active'   => $statsQuery()->where('is_active', true)->count(),
+            'inactive' => $statsQuery()->where('is_active', false)->count(),
+            'today'    => AppUser::whereDate('created_at', today())->count(),
+        ];
+
+        return view('app_users.index', compact('users', 'stats'));
     }
 
     public function create()
@@ -48,7 +95,8 @@ class AppUserController extends Controller
 
         $data['password'] = Hash::make($data['password']);
 
-        AppUser::create($data);
+        $user = AppUser::create($data);
+        ActivityLogger::log('created', 'Created user: ' . $user->name, $user);
 
         return redirect()->route('app_users.index')->with('success', 'تم إنشاء المستخدم بنجاح.');
     }
@@ -97,6 +145,7 @@ class AppUserController extends Controller
         }
 
         $app_user->update($data);
+        ActivityLogger::log('updated', 'Updated user: ' . $app_user->name, $app_user);
 
         return redirect()->route('app_users.index')->with('success', 'تم تحديث بيانات المستخدم بنجاح.');
     }
@@ -107,6 +156,7 @@ class AppUserController extends Controller
             Storage::disk('public')->delete($app_user->photo);
         }
 
+        ActivityLogger::log('deleted', 'Deleted user: ' . $app_user->name, $app_user);
         $app_user->delete();
 
         return redirect()->route('app_users.index')->with('success', 'تم حذف المستخدم بنجاح.');
@@ -116,6 +166,7 @@ class AppUserController extends Controller
     {
         $app_user->is_active = !$app_user->is_active;
         $app_user->save();
+        ActivityLogger::log('updated', ($app_user->is_active ? 'Activated' : 'Deactivated') . ' user: ' . $app_user->name, $app_user);
 
         return redirect()->route('app_users.index')->with('success', 'تم تحديث حالة المستخدم.');
     }

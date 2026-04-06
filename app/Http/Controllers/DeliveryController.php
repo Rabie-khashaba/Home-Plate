@@ -9,13 +9,54 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use App\Services\ActivityLogger;
 
 class DeliveryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $deliveries = Delivery::with(['city','area'])->latest()->paginate(12);
-        return view('deliveries.index', compact('deliveries'));
+        $query = Delivery::with(['city', 'area']);
+        $dateFilter = $request->get('date_filter');
+        $from = $request->get('from');
+        $to   = $request->get('to');
+
+        if ($search = $request->get('search')) {
+            $query->where(fn($q) => $q->where('first_name', 'like', "%{$search}%")
+                                      ->orWhere('phone', 'like', "%{$search}%")
+                                      ->orWhere('email', 'like', "%{$search}%"));
+        }
+
+        if ($status = $request->get('status')) $query->where('status', $status);
+        if ($request->get('active') === '1')   $query->where('is_active', true);
+        if ($request->get('active') === '0')   $query->where('is_active', false);
+
+        match($dateFilter) {
+            'today'      => $query->whereDate('created_at', today()),
+            'yesterday'  => $query->whereDate('created_at', today()->subDay()),
+            'last_week'  => $query->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]),
+            'last_month' => $query->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]),
+            'custom'     => $query->when($from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                                  ->when($to,   fn($q) => $q->whereDate('created_at', '<=', $to)),
+            default      => null,
+        };
+
+        $deliveries = $query->latest()->paginate(15)->withQueryString();
+
+        $sq = fn() => Delivery::when($dateFilter === 'today',      fn($q) => $q->whereDate('created_at', today()))
+                               ->when($dateFilter === 'yesterday',  fn($q) => $q->whereDate('created_at', today()->subDay()))
+                               ->when($dateFilter === 'last_week',  fn($q) => $q->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]))
+                               ->when($dateFilter === 'last_month', fn($q) => $q->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]))
+                               ->when($dateFilter === 'custom' && $from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                               ->when($dateFilter === 'custom' && $to,   fn($q) => $q->whereDate('created_at', '<=', $to));
+
+        $stats = [
+            'total'    => $sq()->count(),
+            'approved' => $sq()->where('status', 'approved')->count(),
+            'pending'  => $sq()->where('status', 'pending')->count(),
+            'rejected' => $sq()->where('status', 'rejected')->count(),
+        ];
+
+        return view('deliveries.index', compact('deliveries', 'stats'));
     }
 
     public function create()
@@ -78,6 +119,7 @@ class DeliveryController extends Controller
 
 
         $delivery = Delivery::create($data);
+        ActivityLogger::log('created', 'Created rider: ' . ($delivery->full_name ?? $delivery->name ?? 'Rider #'.$delivery->id), $delivery);
 
         return redirect()->route('deliveries.index')->with('success', 'Delivery created and awaiting approval.');
     }
@@ -149,6 +191,7 @@ class DeliveryController extends Controller
         }
 
         $delivery->update($validated);
+        ActivityLogger::log('updated', 'Updated rider: ' . ($delivery->full_name ?? $delivery->name ?? 'Rider #'.$delivery->id), $delivery);
 
         return redirect()->route('deliveries.index')->with('success', 'Delivery updated.');
     }
@@ -159,6 +202,7 @@ class DeliveryController extends Controller
         foreach (['photo','drivers_license','national_id','vehicle_photo','vehicle_license_front','vehicle_license_back'] as $file) {
             if ($delivery->$file) Storage::disk('public')->delete($delivery->$file);
         }
+        ActivityLogger::log('deleted', 'Deleted rider: ' . ($delivery->full_name ?? $delivery->name ?? 'Rider #'.$delivery->id), $delivery);
         $delivery->delete();
         return redirect()->route('deliveries.index')->with('success', 'Delivery deleted.');
     }
@@ -184,6 +228,7 @@ class DeliveryController extends Controller
         $delivery->status = 'approved';
         $delivery->is_active = true;
         $delivery->save();
+        ActivityLogger::log('approved', 'Approved rider: ' . ($delivery->full_name ?? $delivery->name ?? 'Rider #'.$delivery->id), $delivery);
 
         return redirect()->back()->with('success', 'Delivery approved.');
     }
@@ -195,6 +240,7 @@ class DeliveryController extends Controller
         $delivery->status = 'rejected';
         $delivery->is_active = false;
         $delivery->save();
+        ActivityLogger::log('rejected', 'Rejected rider: ' . ($delivery->full_name ?? $delivery->name ?? 'Rider #'.$delivery->id), $delivery);
 
         return redirect()->back()->with('error', 'Delivery rejected.');
     }

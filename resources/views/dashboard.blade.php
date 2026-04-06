@@ -620,6 +620,46 @@
                                 </div>
                             </div>
 
+                            {{-- Today's quick stats --}}
+                            <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                                <a href="{{ route('orders.index', ['date_filter' => 'today']) }}" class="panel text-white" style="background:linear-gradient(135deg,#3b82f6,#60a5fa);text-decoration:none">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm" style="opacity:.8">Today's Orders</p>
+                                            <h3 class="text-3xl font-bold">{{ number_format($ordersToday) }}</h3>
+                                        </div>
+                                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" style="opacity:.7"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="white" stroke-width="1.5"/><path d="M3 6h18M16 10a4 4 0 01-8 0" stroke="white" stroke-width="1.5"/></svg>
+                                    </div>
+                                </a>
+                                <div class="panel text-white" style="background:linear-gradient(135deg,#10b981,#34d399)">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm" style="opacity:.8">Today's Revenue</p>
+                                            <h3 class="text-2xl font-bold">{{ number_format((float)$revenueToday, 2) }}</h3>
+                                        </div>
+                                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" style="opacity:.7"><line x1="12" y1="1" x2="12" y2="23" stroke="white" stroke-width="1.5"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="white" stroke-width="1.5"/></svg>
+                                    </div>
+                                </div>
+                                <a href="{{ route('orders.index', ['status' => 'pending_vendor_preparation']) }}" class="panel text-white" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);text-decoration:none">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm" style="opacity:.8">Pending Orders</p>
+                                            <h3 class="text-3xl font-bold">{{ number_format($pendingOrders) }}</h3>
+                                        </div>
+                                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" style="opacity:.7"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="1.5"/><path d="M12 6v6l4 2" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </div>
+                                </a>
+                                <a href="{{ route('orders.index') }}" class="panel text-white" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa);text-decoration:none">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm" style="opacity:.8">Active Orders</p>
+                                            <h3 class="text-3xl font-bold">{{ number_format($activeOrders) }}</h3>
+                                        </div>
+                                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" style="opacity:.7"><path d="M1 4v6h6M23 20v-6h-6" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+                                    </div>
+                                </a>
+                            </div>
+
                             <div class="mb-6 grid gap-6 xl:grid-cols-3">
                                 <div class="panel h-full xl:col-span-2">
                                     <div class="mb-5 flex items-center dark:text-white-light">
@@ -730,6 +770,45 @@
                                     </div>
                                 </div>
 
+                            </div>
+
+                            {{-- Recent Orders --}}
+                            <div class="panel">
+                                <div class="mb-4 flex items-center justify-between">
+                                    <h5 class="text-lg font-semibold dark:text-white-light">Recent Orders</h5>
+                                    <a href="{{ route('orders.index') }}" class="btn btn-sm btn-outline-primary">View All</a>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="w-full">
+                                        <thead>
+                                            <tr><th>#</th><th>Order #</th><th>Client</th><th>Vendor</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse($recentOrders as $order)
+                                            @php
+                                                $sc = match($order->status) {
+                                                    'delivered'                  => '#22c55e',
+                                                    'cancelled'                  => '#ef4444',
+                                                    'pending_vendor_preparation' => '#f59e0b',
+                                                    'out_for_delivery'           => '#a855f7',
+                                                    default                      => '#3b82f6',
+                                                };
+                                            @endphp
+                                            <tr>
+                                                <td>{{ $order->id }}</td>
+                                                <td class="font-medium">{{ $order->order_number }}</td>
+                                                <td>{{ $order->appUser->name ?? '—' }}</td>
+                                                <td>{{ $order->vendor->restaurant_name ?? $order->vendor->full_name ?? '—' }}</td>
+                                                <td>{{ number_format((float)$order->total_amount, 2) }}</td>
+                                                <td><span style="background:{{ $sc }}20;color:{{ $sc }};border:1px solid {{ $sc }}40;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600">{{ ucwords(str_replace('_', ' ', $order->status)) }}</span></td>
+                                                <td class="text-sm text-gray-500 whitespace-nowrap">{{ ($order->ordered_at ?? $order->created_at)?->format('d M Y H:i') }}</td>
+                                            </tr>
+                                            @empty
+                                            <tr><td colspan="7" class="text-center text-gray-400 py-8">No orders yet.</td></tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                         </div>

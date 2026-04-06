@@ -8,6 +8,7 @@ use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use App\Services\ActivityLogger;
 
 class VendorController extends Controller
 {
@@ -21,11 +22,58 @@ class VendorController extends Controller
         'friday',
     ];
 
-    public function index()
+    public function index(Request $request)
     {
-        $vendors = Vendor::with(['city', 'area'])->latest()->paginate(10);
+        $query = Vendor::with(['city', 'area']);
 
-        return view('vendors.index', compact('vendors'));
+        // Search
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('full_name',        'like', "%{$search}%")
+                  ->orWhere('restaurant_name','like', "%{$search}%")
+                  ->orWhere('phone',          'like', "%{$search}%")
+                  ->orWhere('email',          'like', "%{$search}%");
+            });
+        }
+
+        // Status filter
+        if ($status = $request->get('status')) $query->where('status', $status);
+        if ($request->get('active') === '1')   $query->where('is_active', true);
+        if ($request->get('active') === '0')   $query->where('is_active', false);
+
+        // Date filter
+        $dateFilter = $request->get('date_filter');
+        match($dateFilter) {
+            'today'      => $query->whereDate('created_at', today()),
+            'yesterday'  => $query->whereDate('created_at', today()->subDay()),
+            'last_week'  => $query->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]),
+            'last_month' => $query->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]),
+            'custom'     => $query->when($request->get('from'), fn($q) => $q->whereDate('created_at', '>=', $request->get('from')))
+                                  ->when($request->get('to'),   fn($q) => $q->whereDate('created_at', '<=', $request->get('to'))),
+            default      => null,
+        };
+
+        $vendors = $query->latest()->paginate(15)->withQueryString();
+
+        // Stats — apply same date filter
+        $from = $request->get('from');
+        $to   = $request->get('to');
+
+        $statsQuery = fn() => Vendor::when($dateFilter === 'today',      fn($q) => $q->whereDate('created_at', today()))
+                                    ->when($dateFilter === 'yesterday',  fn($q) => $q->whereDate('created_at', today()->subDay()))
+                                    ->when($dateFilter === 'last_week',  fn($q) => $q->whereBetween('created_at', [now()->subWeek()->startOfDay(), now()->endOfDay()]))
+                                    ->when($dateFilter === 'last_month', fn($q) => $q->whereBetween('created_at', [now()->subMonth()->startOfDay(), now()->endOfDay()]))
+                                    ->when($dateFilter === 'custom' && $from, fn($q) => $q->whereDate('created_at', '>=', $from))
+                                    ->when($dateFilter === 'custom' && $to,   fn($q) => $q->whereDate('created_at', '<=', $to));
+
+        $stats = [
+            'total'    => $statsQuery()->count(),
+            'approved' => $statsQuery()->where('status', 'approved')->count(),
+            'pending'  => $statsQuery()->where('status', 'pending')->count(),
+            'rejected' => $statsQuery()->where('status', 'rejected')->count(),
+        ];
+
+        return view('vendors.index', compact('vendors', 'stats'));
     }
 
     public function create()
@@ -50,7 +98,8 @@ class VendorController extends Controller
         $validated['is_active'] = false;
         $validated['working_time'] = $this->normalizeWorkingTime($validated['working_time'] ?? null);
 
-        Vendor::create($validated);
+        $vendor = Vendor::create($validated);
+        ActivityLogger::log('created', 'Created vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
 
         return redirect()->route('vendors.index')->with('success', 'Vendor created successfully and awaiting approval.');
     }
@@ -92,6 +141,7 @@ class VendorController extends Controller
         }
 
         $vendor->update($validated);
+        ActivityLogger::log('updated', 'Updated vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
 
         return redirect()->route('vendors.index')->with('success', 'Vendor updated successfully.');
     }
@@ -104,6 +154,7 @@ class VendorController extends Controller
             }
         }
 
+        ActivityLogger::log('deleted', 'Deleted vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
         $vendor->delete();
 
         return redirect()->route('vendors.index')->with('success', 'Vendor deleted successfully.');
@@ -119,6 +170,7 @@ class VendorController extends Controller
 
         $vendor->is_active = ! $vendor->is_active;
         $vendor->save();
+        ActivityLogger::log('updated', ($vendor->is_active ? 'Activated' : 'Deactivated') . ' vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
 
         return redirect()->back()->with('success', 'Vendor active status updated successfully.');
     }
@@ -129,6 +181,7 @@ class VendorController extends Controller
         $vendor->status = 'approved';
         $vendor->is_active = true;
         $vendor->save();
+        ActivityLogger::log('approved', 'Approved vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
 
         return redirect()->back()->with('success', 'Vendor approved successfully.');
     }
@@ -139,6 +192,7 @@ class VendorController extends Controller
         $vendor->status = 'rejected';
         $vendor->is_active = false;
         $vendor->save();
+        ActivityLogger::log('rejected', 'Rejected vendor: ' . ($vendor->restaurant_name ?? $vendor->full_name), $vendor);
 
         return redirect()->back()->with('error', 'Vendor rejected.');
     }
