@@ -32,8 +32,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div><strong>Name:</strong> {{ $item->name }}</div>
-        <div><strong>Category:</strong> {{ $item->category->name_en ?? '-' }}</div>
-        <div><strong>Subcategory:</strong> {{ $item->subcategory->name_en ?? '-' }}</div>
+        <div><strong>Subcategories:</strong> {{ $item->subcategories->pluck('name_en')->filter()->join(', ') ?: '-' }}</div>
         <div><strong>Vendor:</strong> {{ $item->vendor->restaurant_name ?? '-' }}</div>
         <div><strong>Price:</strong> {{ $item->price }}</div>
         <div><strong>Discount:</strong> {{ $item->discount ?? '-' }}</div>

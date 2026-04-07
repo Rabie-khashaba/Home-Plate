@@ -68,6 +68,11 @@ class Vendor extends Authenticatable
         return $this->belongsToMany(Category::class);
     }
 
+    public function subcategories(): BelongsToMany
+    {
+        return $this->belongsToMany(Subcategory::class);
+    }
+
     public function area()
     {
         return $this->belongsTo(Area::class);

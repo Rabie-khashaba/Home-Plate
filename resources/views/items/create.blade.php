@@ -24,27 +24,15 @@
         </div>
 
         <div>
-            <label>Category</label>
-            <select name="category_id" id="category_id" class="form-input" required>
-                <option value="">Select Category</option>
-                @foreach($categories as $category)
-                    <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>
-                        {{ $category->name_en }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-
-        <div>
-            <label>Subcategory</label>
-            <select name="subcategory_id" id="subcategory_id" class="form-input" required>
-                <option value="">Select Subcategory</option>
+            <label>Subcategories</label>
+            <select name="subcategory_ids[]" class="form-input" multiple required size="8">
                 @foreach($subcategories as $subcategory)
-                    <option value="{{ $subcategory->id }}" data-category-id="{{ $subcategory->category_id }}" {{ old('subcategory_id') == $subcategory->id ? 'selected' : '' }}>
+                    <option value="{{ $subcategory->id }}" {{ in_array($subcategory->id, old('subcategory_ids', [])) ? 'selected' : '' }}>
                         {{ $subcategory->name_en }}
                     </option>
                 @endforeach
             </select>
+            <small class="text-gray-500">Hold Ctrl or Cmd to select more than one subcategory.</small>
         </div>
 
         <div>
@@ -103,36 +91,3 @@
     </form>
 </div>
 @endsection
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const categorySelect = document.getElementById('category_id');
-    const subcategorySelect = document.getElementById('subcategory_id');
-
-    if (!categorySelect || !subcategorySelect) {
-        return;
-    }
-
-    const allOptions = Array.from(subcategorySelect.querySelectorAll('option[data-category-id]'));
-
-    function syncSubcategories() {
-        const categoryId = categorySelect.value;
-        const currentValue = subcategorySelect.value;
-
-        allOptions.forEach(function (option) {
-            const matches = !categoryId || option.dataset.categoryId === categoryId;
-            option.hidden = !matches;
-            option.disabled = !matches;
-        });
-
-        const selectedOption = subcategorySelect.querySelector('option[value="' + currentValue + '"]');
-        if (selectedOption && (selectedOption.disabled || selectedOption.hidden)) {
-            subcategorySelect.value = '';
-        }
-    }
-
-    categorySelect.addEventListener('change', syncSubcategories);
-    syncSubcategories();
-});
-</script>
-@endpush

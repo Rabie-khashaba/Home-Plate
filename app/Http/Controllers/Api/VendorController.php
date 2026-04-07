@@ -32,7 +32,18 @@ class VendorController extends Controller
             'message' => $vendors->isEmpty()
                 ? 'No vendors found for this category.'
                 : 'Vendors fetched successfully.',
-            'data' => $this->transformVendors($vendors),
+            'data' => $vendors->map(function (Vendor $vendor) {
+                return [
+                    'id' => $vendor->id,
+                    'name' => $vendor->restaurant_name ?: $vendor->full_name,
+                    'main_photo' => $this->toPublicUrl($vendor->main_photo),
+                    'id_front' => $this->toPublicUrl($vendor->id_front),
+                    'id_back' => $this->toPublicUrl($vendor->id_back),
+                    'kitchen_photo_1' => $this->toPublicUrl($vendor->kitchen_photo_1),
+                    'kitchen_photo_2' => $this->toPublicUrl($vendor->kitchen_photo_2),
+                    'kitchen_photo_3' => $this->toPublicUrl($vendor->kitchen_photo_3),
+                ];
+            })->values(),
         ]);
     }
 
@@ -95,7 +106,8 @@ class VendorController extends Controller
             })->values();
 
             $data['subcategories'] = $vendor->items
-                ->pluck('subcategory')
+                ->pluck('subcategories')
+                ->flatten()
                 ->filter()
                 ->unique('id')
                 ->values()
@@ -113,6 +125,7 @@ class VendorController extends Controller
             'area',
             'items.category',
             'items.subcategory',
+            'items.subcategories.category',
         ]);
     }
 

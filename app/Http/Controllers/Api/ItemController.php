@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Item;
+use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Vendor;
 use Illuminate\Database\Eloquent\Model;
@@ -42,7 +43,7 @@ class ItemController extends Controller
         Subcategory::query()->findOrFail($subcategoryId);
 
         $items = $this->publicItemsQuery()
-            ->where('subcategory_id', $subcategoryId)
+            ->whereHas('subcategories', fn ($query) => $query->where('subcategories.id', $subcategoryId))
             ->latest()
             ->get();
 
@@ -56,12 +57,31 @@ class ItemController extends Controller
         ]);
     }
 
+    public function byCategory(int $categoryId)
+    {
+        Category::query()->findOrFail($categoryId);
+
+        $items = $this->publicItemsQuery()
+            ->whereHas('subcategories', fn ($query) => $query->where('subcategories.category_id', $categoryId))
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'message' => $items->isEmpty()
+                ? 'No items found for this category.'
+                : 'Items fetched successfully.',
+            'data' => $items->map(function (Item $item) {
+                return $this->withImageUrls($item);
+            })->values(),
+        ]);
+    }
+
     public function indexApproved(Request $request)
     {
 
         $vendor = $this->ensureVendor($request);
 
-        $items = Item::with(['vendor', 'category', 'subcategory'])
+        $items = Item::with(['vendor', 'category', 'subcategory', 'subcategories.category'])
             ->where('vendor_id', $vendor->id)
             ->where('approval_status', 'approved')
             ->latest()
@@ -79,7 +99,7 @@ class ItemController extends Controller
     {
         $vendor = $this->ensureVendor($request);
 
-        $items = Item::with(['vendor', 'category', 'subcategory'])
+        $items = Item::with(['vendor', 'category', 'subcategory', 'subcategories.category'])
             ->where('vendor_id', $vendor->id)
             ->latest()
             ->get();
@@ -97,7 +117,8 @@ class ItemController extends Controller
         $vendor = $this->ensureVendor($request);
 
         $validated = $request->validate([
-            'subcategory_id' => 'required|exists:subcategories,id',
+            'subcategory_ids' => 'required|array|min:1',
+            'subcategory_ids.*' => 'required|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
@@ -110,20 +131,26 @@ class ItemController extends Controller
             'photos.*' => 'required|image|max:4096',
         ]);
 
-        $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
+        $subcategories = $this->resolveVendorSubcategories($vendor, $validated['subcategory_ids']);
+        $primarySubcategory = $subcategories->first();
         $validated['vendor_id'] = $vendor->id;
-        $validated['category_id'] = $subcategory->category_id;
+        $validated['subcategory_id'] = $primarySubcategory?->id;
+        $validated['category_id'] = $primarySubcategory?->category_id;
         $validated['approval_status'] = 'pending';
         $validated['availability_status'] = 'paused';
         $validated['max_orders_per_day'] = $validated['max_orders_per_day'] ?? $validated['stock'];
         $validated['photos'] = $this->storePhotos($request->file('photos'));
+        unset($validated['subcategory_ids']);
 
         $item = Item::create($validated);
-        $vendor->categories()->syncWithoutDetaching([$validated['category_id']]);
+        $item->subcategories()->sync($subcategories->pluck('id')->all());
+        $vendor->categories()->syncWithoutDetaching(
+            $subcategories->pluck('category_id')->filter()->unique()->values()->all()
+        );
 
         return response()->json([
             'message' => 'Item created successfully and awaiting approval.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory', 'subcategories.category'])),
         ], 201);
     }
 
@@ -134,7 +161,8 @@ class ItemController extends Controller
         $item = Item::where('vendor_id', $vendor->id)->findOrFail($id);
 
         $validated = $request->validate([
-            'subcategory_id' => 'nullable|exists:subcategories,id',
+            'subcategory_ids' => 'nullable|array|min:1',
+            'subcategory_ids.*' => 'required|exists:subcategories,id',
             'name' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'price' => 'nullable|numeric|min:0',
@@ -147,9 +175,13 @@ class ItemController extends Controller
             'photos.*' => 'required_with:photos|image|max:4096',
         ]);
 
-        if (array_key_exists('subcategory_id', $validated)) {
-            $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
-            $validated['category_id'] = $subcategory->category_id;
+        if (array_key_exists('subcategory_ids', $validated)) {
+            $subcategories = $this->resolveVendorSubcategories($vendor, $validated['subcategory_ids']);
+            $primarySubcategory = $subcategories->first();
+            $validated['subcategory_id'] = $primarySubcategory?->id;
+            $validated['category_id'] = $primarySubcategory?->category_id;
+        } else {
+            $subcategories = null;
         }
 
         if ($request->hasFile('photos')) {
@@ -161,17 +193,25 @@ class ItemController extends Controller
             $validated['availability_status'] = 'paused';
         }
 
+        unset($validated['subcategory_ids']);
+
         $item->update($validated);
+
+        if ($subcategories !== null) {
+            $item->subcategories()->sync($subcategories->pluck('id')->all());
+        }
 
         $vendorId = $validated['vendor_id'] ?? $item->vendor_id;
         $itemVendor = Vendor::find($vendorId);
-        if ($itemVendor && ! empty($item->category_id)) {
-            $itemVendor->categories()->syncWithoutDetaching([$item->category_id]);
+        if ($itemVendor) {
+            $itemVendor->categories()->syncWithoutDetaching(
+                $item->subcategories()->pluck('category_id')->filter()->unique()->values()->all()
+            );
         }
 
         return response()->json([
             'message' => 'Item updated successfully.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory', 'subcategories.category'])),
         ]);
     }
 
@@ -186,7 +226,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item approved.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory', 'subcategories.category'])),
         ]);
     }
 
@@ -201,7 +241,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item rejected.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory', 'subcategories.category'])),
         ]);
     }
 
@@ -228,7 +268,7 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item published.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory', 'subcategories.category'])),
         ]);
     }
 
@@ -249,13 +289,13 @@ class ItemController extends Controller
 
         return response()->json([
             'message' => 'Item paused.',
-            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory'])),
+            'data' => $this->withImageUrls($item->fresh(['vendor', 'category', 'subcategory', 'subcategories.category'])),
         ]);
     }
 
     private function publicItemsQuery()
     {
-        return Item::with(['vendor', 'category', 'subcategory'])
+        return Item::with(['vendor', 'category', 'subcategory', 'subcategories.category'])
             ->where('approval_status', 'approved')
             ->where('availability_status', 'published');
     }
@@ -337,5 +377,21 @@ class ItemController extends Controller
         }
 
         abort(403, 'Admin authentication required.');
+    }
+
+    private function resolveVendorSubcategories(Vendor $vendor, array $subcategoryIds)
+    {
+        $vendor->loadMissing(['subcategories:id']);
+
+        $resolved = Subcategory::query()
+            ->whereIn('id', $subcategoryIds)
+            ->whereIn('id', $vendor->subcategories->pluck('id')->all())
+            ->get();
+
+        if ($resolved->count() !== count(array_unique($subcategoryIds))) {
+            abort(422, 'One or more subcategories are invalid for this vendor.');
+        }
+
+        return $resolved;
     }
 }

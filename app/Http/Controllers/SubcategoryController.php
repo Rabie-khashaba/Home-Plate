@@ -2,32 +2,29 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Category;
 use App\Models\Subcategory;
 
 class SubcategoryController extends Controller
 {
     public function index()
     {
-        $subcategories = Subcategory::with('category')->paginate(10);
+        $subcategories = Subcategory::paginate(10);
         return view('subcategories.index', compact('subcategories'));
     }
 
     public function create()
     {
-        $categories = Category::all();
-        return view('subcategories.create', compact('categories'));
+        return view('subcategories.create');
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'category_id' => 'required|exists:categories,id',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'required|string|max:255',
         ]);
 
-        Subcategory::create($request->all());
+        Subcategory::create($request->only(['name_ar', 'name_en']));
         return redirect()->route('subcategories.index')->with('success', 'Subcategory created successfully');
     }
 
@@ -38,19 +35,17 @@ class SubcategoryController extends Controller
 
     public function edit(Subcategory $subcategory)
     {
-        $categories = Category::all();
-        return view('subcategories.edit', compact('subcategory', 'categories'));
+        return view('subcategories.edit', compact('subcategory'));
     }
 
     public function update(Request $request, Subcategory $subcategory)
     {
         $request->validate([
-            'category_id' => 'required|exists:categories,id',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'required|string|max:255',
         ]);
 
-        $subcategory->update($request->all());
+        $subcategory->update($request->only(['name_ar', 'name_en']));
         return redirect()->route('subcategories.index')->with('success', 'Subcategory updated successfully');
     }
 

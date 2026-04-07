@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\Subcategory;
+use App\Models\Vendor;
 use Illuminate\Http\Request;
 
 class GeneralRequestController extends Controller
@@ -50,13 +51,22 @@ class GeneralRequestController extends Controller
     {
         $query = Subcategory::query()->with('category')->latest();
 
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
         return response()->json([
             'message' => 'Subcategories fetched successfully.',
             'data' => $query->get(),
+        ]);
+    }
+
+    public function subcategoriesByVendor(int $vendorId)
+    {
+        $vendor = Vendor::with(['subcategories:id,category_id,name_en,name_ar'])->findOrFail($vendorId);
+
+        return response()->json([
+            'message' => 'Subcategories fetched successfully.',
+            'data' => $vendor->subcategories()
+
+                ->latest()
+                ->get(),
         ]);
     }
 

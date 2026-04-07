@@ -11,16 +11,6 @@
     <form class="grid grid-cols-1 md:grid-cols-2 gap-5" method="POST" action="{{ route('subcategories.store') }}">
         @csrf
         <div>
-            <label for="category_id">Category</label>
-            <select id="category_id" name="category_id" class="form-input" required>
-                <option value="">Select Category</option>
-                @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}">{{ $cat->name_en }} / {{ $cat->name_ar }}</option>
-                @endforeach
-            </select>
-        </div>
-
-        <div>
             <label for="name_en">Name (English)</label>
             <input id="name_en" name="name_en" type="text" class="form-input" required />
         </div>

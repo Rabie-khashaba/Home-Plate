@@ -36,7 +36,7 @@ class ProfileController extends Controller
 
     public function vendor(int $id)
     {
-        $vendor = Vendor::with(['categories', 'city', 'area', 'addresses'])->findOrFail($id);
+        $vendor = Vendor::with(['categories', 'subcategories', 'city', 'area', 'addresses'])->findOrFail($id);
 
         return response()->json([
             'message' => 'Vendor profile fetched successfully.',
@@ -130,6 +130,8 @@ class ProfileController extends Controller
             'restaurant_name' => 'nullable|string|max:255',
             'category_ids' => 'nullable|array|min:1',
             'category_ids.*' => 'exists:categories,id',
+            'subcategory_ids' => 'nullable|array|min:1',
+            'subcategory_ids.*' => 'exists:subcategories,id',
             'city_id' => 'nullable|exists:cities,id',
             'area_id' => 'nullable|exists:areas,id',
             'delivery_address' => 'nullable|string',
@@ -153,7 +155,8 @@ class ProfileController extends Controller
         }
 
         $categoryIds = $validated['category_ids'] ?? null;
-        unset($validated['category_ids']);
+        $subcategoryIds = $validated['subcategory_ids'] ?? null;
+        unset($validated['category_ids'], $validated['subcategory_ids']);
 
         if (is_array($categoryIds)) {
             $validated['category_id'] = $categoryIds[0] ?? null;
@@ -165,9 +168,13 @@ class ProfileController extends Controller
             $vendor->categories()->sync($categoryIds);
         }
 
+        if (is_array($subcategoryIds)) {
+            $vendor->subcategories()->sync($subcategoryIds);
+        }
+
         return response()->json([
             'message' => 'Vendor updated successfully.',
-            'data' => $this->withImageUrls($vendor->fresh(['categories', 'city', 'area']), $this->vendorImageFields()),
+            'data' => $this->withImageUrls($vendor->fresh(['categories', 'subcategories.category', 'city', 'area']), $this->vendorImageFields()),
         ]);
     }
 

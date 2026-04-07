@@ -4,14 +4,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AppUserAuthController;
 use App\Http\Controllers\Api\DeliveryAuthController;
+use App\Http\Controllers\Api\VendorAuthController;
+use App\Http\Controllers\Api\AppUserStatusController;
+use App\Http\Controllers\Api\DeliveryStatusController;
+use App\Http\Controllers\Api\VendorStatusController;
 use App\Http\Controllers\Api\GeneralRequestController;
 use App\Http\Controllers\Api\GeneralSettingController;
-use App\Http\Controllers\Api\ItemController as ApiItemController;
-use App\Http\Controllers\Api\AddressController as ApiAddressController;
-use App\Http\Controllers\Api\OrderController as ApiOrderController;
+use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
+use App\Http\Controllers\Api\OrderController as ApiOrderController;
 use App\Http\Controllers\Api\VendorController as ApiVendorController;
-use App\Http\Controllers\Api\VendorAuthController;
+use App\Http\Controllers\Api\AddressController as ApiAddressController;
+use App\Http\Controllers\Api\ItemController as ApiItemController;
+
+
+
+
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -24,11 +33,32 @@ use App\Http\Controllers\Api\VendorAuthController;
 */
 
 
+Route::prefix('general')->group(function () {
+    Route::get('/categories', [GeneralRequestController::class, 'categories']);
+    Route::get('/subcategories', [GeneralRequestController::class, 'subcategories']);
+    Route::get('/countries', [GeneralRequestController::class, 'countries']);
+    Route::get('/cities', [GeneralRequestController::class, 'cities']);
+    Route::get('/areas', [GeneralRequestController::class, 'areas']);
+    Route::get('/items', [ItemController::class, 'getAllItems']);
+    Route::get('/items/{id}', [ItemController::class, 'getItemById']);
+    Route::get('/settings', [GeneralSettingController::class, 'show']);
+    Route::get('/vendors/by-category/{categoryId}', [ApiVendorController::class, 'byCategory']);
+    Route::get('/vendors/by-item/{itemId}', [ApiVendorController::class, 'byItem']);
+    Route::get('/subcategories/by-vendor/{vendorId}', [GeneralRequestController::class, 'subcategoriesByVendor']);
+    Route::get('/items/by-category/{categoryId}', [ApiItemController::class, 'byCategory']);
+    Route::get('/items/by-subcategory/{subcategoryId}', [ApiItemController::class, 'bySubcategory']);
+
+});
+
+
+
 Route::prefix('delivery/auth')->group(function () {
     Route::post('/register', [DeliveryAuthController::class, 'register']);
     Route::post('/register/verify-otp', [DeliveryAuthController::class, 'verifyRegisterOtp']);
     Route::post('/login', [DeliveryAuthController::class, 'login']);
     Route::post('/forgot-password', [DeliveryAuthController::class, 'forgotPassword']);
+    Route::post('/resend-otp', [DeliveryAuthController::class, 'resendOtp']);
+    Route::post('/verify-forgot-password-otp', [DeliveryAuthController::class, 'verifyForgotPasswordOtp']);
     Route::post('/reset-password', [DeliveryAuthController::class, 'resetPassword']);
 
     Route::middleware('auth:sanctum')->post('/logout', [DeliveryAuthController::class, 'logout']);
@@ -39,6 +69,8 @@ Route::prefix('app-user/auth')->group(function () {
     Route::post('/register/verify-otp', [AppUserAuthController::class, 'verifyRegisterOtp']);
     Route::post('/login', [AppUserAuthController::class, 'login']);
     Route::post('/forgot-password', [AppUserAuthController::class, 'forgotPassword']);
+    Route::post('/resend-otp', [AppUserAuthController::class, 'resendOtp']);
+    Route::post('/verify-forgot-password-otp', [AppUserAuthController::class, 'verifyForgotPasswordOtp']);
     Route::post('/reset-password', [AppUserAuthController::class, 'resetPassword']);
 
     Route::middleware('auth:sanctum')->post('/logout', [AppUserAuthController::class, 'logout']);
@@ -49,10 +81,21 @@ Route::prefix('vendor/auth')->group(function () {
     Route::post('/register/verify-otp', [VendorAuthController::class, 'verifyRegisterOtp']);
     Route::post('/login', [VendorAuthController::class, 'login']);
     Route::post('/forgot-password', [VendorAuthController::class, 'forgotPassword']);
+    Route::post('/resend-otp', [VendorAuthController::class, 'resendOtp']);
+    Route::post('/verify-forgot-password-otp', [VendorAuthController::class, 'verifyForgotPasswordOtp']);
     Route::post('/reset-password', [VendorAuthController::class, 'resetPassword']);
 
     Route::middleware('auth:sanctum')->post('/logout', [VendorAuthController::class, 'logout']);
 });
+
+Route::middleware('auth:sanctum')->get('/vendors', [ApiVendorController::class, 'index']);
+Route::middleware('auth:sanctum')->get('/orders/last-with-top-item', [ApiOrderController::class, 'lastOrderWithTopItem']);
+
+Route::middleware('auth:sanctum')->post('/addresses/app-user/{id}', [ApiAddressController::class, 'storeForAppUser']);
+Route::middleware('auth:sanctum')->post('/addresses/vendor/{id}', [ApiAddressController::class, 'storeForVendor']);
+
+
+
 
 Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
     Route::get('/app-user/{id}', [ApiProfileController::class, 'appUser']);
@@ -63,20 +106,61 @@ Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
     Route::post('/delivery/{id}', [ApiProfileController::class, 'updateDelivery']);
 });
 
-Route::middleware('auth:sanctum')->get('/vendors', [ApiVendorController::class, 'index']);
-Route::middleware('auth:sanctum')->get('/orders/last-with-top-item', [ApiOrderController::class, 'lastOrderWithTopItem']);
+Route::middleware('auth:sanctum')->group(function () {
 
-Route::middleware('auth:sanctum')->post('/addresses/app-user/{id}', [ApiAddressController::class, 'storeForAppUser']);
-Route::middleware('auth:sanctum')->post('/addresses/vendor/{id}', [ApiAddressController::class, 'storeForVendor']);
+    Route::prefix('orders')->group(function () {
+        Route::post('/', [ApiOrderController::class, 'store']); // app user creates order (includes item_id)
+        Route::get('/my', [ApiOrderController::class, 'myOrders']);
+        Route::get('/{id}', [ApiOrderController::class, 'show']);
+    });
 
-Route::prefix('general')->group(function () {
-    Route::get('/categories', [GeneralRequestController::class, 'categories']);
-    Route::get('/subcategories', [GeneralRequestController::class, 'subcategories']);
-    Route::get('/vendors/by-category/{categoryId}', [ApiVendorController::class, 'byCategory']);
-    Route::get('/vendors/by-item/{itemId}', [ApiVendorController::class, 'byItem']);
-    Route::get('/items/by-subcategory/{subcategoryId}', [ApiItemController::class, 'bySubcategory']);
-    Route::get('/countries', [GeneralRequestController::class, 'countries']);
-    Route::get('/cities', [GeneralRequestController::class, 'cities']);
-    Route::get('/areas', [GeneralRequestController::class, 'areas']);
-    Route::get('/settings', [GeneralSettingController::class, 'show']);
+    Route::prefix('vendor/orders')->group(function () {
+        Route::get('/', [ApiOrderController::class, 'myOrders']);
+        Route::post('/{id}/start-cooking', [ApiOrderController::class, 'vendorStartCooking']);
+        Route::post('/{id}/ready-for-pickup', [ApiOrderController::class, 'vendorReadyForPickup']);
+        Route::post('/{id}/confirm-handover', [ApiOrderController::class, 'vendorConfirmHandover']);
+    });
+
+    Route::prefix('delivery/orders')->group(function () {
+        Route::get('/available', [ApiOrderController::class, 'deliveryAvailable']);
+        Route::post('/{id}/accept', [ApiOrderController::class, 'deliveryAccept']);
+        Route::post('/{id}/confirm-pickup', [ApiOrderController::class, 'deliveryConfirmPickup']);  // vendor
+        Route::post('/{id}/out-for-delivery', [ApiOrderController::class, 'deliveryMarkOutForDelivery']);
+        Route::post('/{id}/verify-pin', [ApiOrderController::class, 'deliveryVerifyPinAndComplete']);   // user
+    });
+
+    Route::prefix('items')->group(function () {
+        Route::get('/', [ItemController::class, 'indexApproved']);
+        Route::post('/{id}/approve', [ItemController::class, 'approve']);
+        Route::post('/{id}/reject', [ItemController::class, 'reject']);
+    });
+
+    Route::prefix('vendor/items')->group(function () {
+        Route::get('/', [ItemController::class, 'vendorIndex']);
+        Route::post('/', [ItemController::class, 'store']);
+        Route::post('/{id}', [ItemController::class, 'update']);
+        Route::post('/{id}/publish', [ItemController::class, 'publish']);
+        Route::post('/{id}/pause', [ItemController::class, 'pause']);
+    });
+
+    Route::prefix('vendor')->group(function () {
+        Route::post('/{id}/status/pending', [VendorStatusController::class, 'setPending']);
+        Route::post('/{id}/status/approved', [VendorStatusController::class, 'approve']);
+        Route::post('/{id}/status/rejected', [VendorStatusController::class, 'reject']);
+        Route::post('/{id}/activate', [VendorStatusController::class, 'activate']);
+        Route::post('/{id}/deactivate', [VendorStatusController::class, 'deactivate']);
+    });
+
+    Route::prefix('delivery')->group(function () {
+        Route::post('/{id}/status/pending', [DeliveryStatusController::class, 'setPending']);
+        Route::post('/{id}/status/approved', [DeliveryStatusController::class, 'approve']);
+        Route::post('/{id}/status/rejected', [DeliveryStatusController::class, 'reject']);
+        Route::post('/{id}/activate', [DeliveryStatusController::class, 'activate']);
+        Route::post('/{id}/deactivate', [DeliveryStatusController::class, 'deactivate']);
+    });
+
+    Route::prefix('app-user')->group(function () {
+        Route::post('/{id}/activate', [AppUserStatusController::class, 'activate']);
+        Route::post('/{id}/deactivate', [AppUserStatusController::class, 'deactivate']);
+    });
 });

@@ -15,7 +15,7 @@ class ItemController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Item::with(['vendor', 'category', 'subcategory']);
+        $query = Item::with(['vendor', 'category', 'subcategory', 'subcategories']);
         $dateFilter = $request->get('date_filter');
         $from = $request->get('from');
         $to   = $request->get('to');
@@ -60,17 +60,17 @@ class ItemController extends Controller
     public function create()
     {
         $vendors = Vendor::orderBy('restaurant_name')->get();
-        $categories = Category::orderBy('name_en')->get();
-        $subcategories = Subcategory::with('category')->orderBy('name_en')->get();
+        $subcategories = Subcategory::orderBy('name_en')->get();
 
-        return view('items.create', compact('vendors', 'categories', 'subcategories'));
+        return view('items.create', compact('vendors', 'subcategories'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
-            'subcategory_id' => 'required|exists:subcategories,id',
+            'subcategory_ids' => 'required|array|min:1',
+            'subcategory_ids.*' => 'required|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
@@ -83,16 +83,23 @@ class ItemController extends Controller
             'photos.*' => 'required|image|max:4096',
         ]);
 
-        $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
-        $validated['category_id'] = $subcategory->category_id;
+        $subcategories = Subcategory::whereIn('id', $validated['subcategory_ids'])->get();
+        $primarySubcategory = $subcategories->first();
+        $validated['subcategory_id'] = $primarySubcategory?->id;
+        $validated['category_id'] = $primarySubcategory?->category_id;
 
         $validated['approval_status'] = 'approved';
         $validated['availability_status'] = 'paused';
         $validated['max_orders_per_day'] = $validated['max_orders_per_day'] ?? $validated['stock'];
         $validated['photos'] = $this->storePhotos($request->file('photos'));
+        unset($validated['subcategory_ids']);
 
         $item = Item::create($validated);
-        $item->vendor?->categories()->syncWithoutDetaching([$validated['category_id']]);
+        $item->subcategories()->sync($subcategories->pluck('id')->all());
+        $item->vendor?->subcategories()->syncWithoutDetaching($subcategories->pluck('id')->all());
+        $item->vendor?->categories()->syncWithoutDetaching(
+            $subcategories->pluck('category_id')->filter()->unique()->values()->all()
+        );
         ActivityLogger::log('created', 'Added item: ' . $item->name, $item);
 
         return redirect()->route('items.index')->with('success', 'Item created and awaiting approval.');
@@ -100,7 +107,7 @@ class ItemController extends Controller
 
     public function show(Item $item)
     {
-        $item->load(['vendor', 'category', 'subcategory']);
+        $item->load(['vendor', 'category', 'subcategory', 'subcategories']);
 
         return view('items.show', compact('item'));
     }
@@ -108,17 +115,17 @@ class ItemController extends Controller
     public function edit(Item $item)
     {
         $vendors = Vendor::orderBy('restaurant_name')->get();
-        $categories = Category::orderBy('name_en')->get();
-        $subcategories = Subcategory::with('category')->orderBy('name_en')->get();
+        $subcategories = Subcategory::orderBy('name_en')->get();
 
-        return view('items.edit', compact('item', 'vendors', 'categories', 'subcategories'));
+        return view('items.edit', compact('item', 'vendors', 'subcategories'));
     }
 
     public function update(Request $request, Item $item)
     {
         $validated = $request->validate([
             'vendor_id' => 'required|exists:vendors,id',
-            'subcategory_id' => 'required|exists:subcategories,id',
+            'subcategory_ids' => 'required|array|min:1',
+            'subcategory_ids.*' => 'required|exists:subcategories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
@@ -133,8 +140,10 @@ class ItemController extends Controller
             'photos.*' => 'required_with:photos|image|max:4096',
         ]);
 
-        $subcategory = Subcategory::findOrFail($validated['subcategory_id']);
-        $validated['category_id'] = $subcategory->category_id;
+        $subcategories = Subcategory::whereIn('id', $validated['subcategory_ids'])->get();
+        $primarySubcategory = $subcategories->first();
+        $validated['subcategory_id'] = $primarySubcategory?->id;
+        $validated['category_id'] = $primarySubcategory?->category_id;
 
         if ($request->hasFile('photos')) {
             $this->deletePhotos($item->photos ?? []);
@@ -153,8 +162,14 @@ class ItemController extends Controller
             $validated['max_orders_per_day'] = $item->max_orders_per_day;
         }
 
+        unset($validated['subcategory_ids']);
+
         $item->update($validated);
-        $item->vendor?->categories()->syncWithoutDetaching([$item->category_id]);
+        $item->subcategories()->sync($subcategories->pluck('id')->all());
+        $item->vendor?->subcategories()->syncWithoutDetaching($subcategories->pluck('id')->all());
+        $item->vendor?->categories()->syncWithoutDetaching(
+            $subcategories->pluck('category_id')->filter()->unique()->values()->all()
+        );
         ActivityLogger::log('updated', 'Updated item: ' . $item->name, $item);
 
         return redirect()->route('items.index')->with('success', 'Item updated successfully.');

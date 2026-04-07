@@ -10,11 +10,6 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-            <label class="block text-sm font-medium text-gray-600 dark:text-gray-300">Category</label>
-            <p class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{{ $subcategory->category->name_en }} / {{ $subcategory->category->name_ar }}</p>
-        </div>
-
-        <div>
             <label class="block text-sm font-medium text-gray-600 dark:text-gray-300">Name (English)</label>
             <p class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{{ $subcategory->name_en }}</p>
         </div>

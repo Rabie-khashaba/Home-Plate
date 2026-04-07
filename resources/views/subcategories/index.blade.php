@@ -13,7 +13,6 @@
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Category</th>
                     <th>Name (EN)</th>
                     <th>Name (AR)</th>
                     <th>Actions</th>
@@ -23,7 +22,6 @@
                 @foreach($subcategories as $key => $sub)
                 <tr>
                     <td>{{ $key + 1 }}</td>
-                    <td>{{ $sub->category->name_en }} / {{ $sub->category->name_ar }}</td>
                     <td>{{ $sub->name_en }}</td>
                     <td>{{ $sub->name_ar }}</td>
                     <td class="flex gap-2">

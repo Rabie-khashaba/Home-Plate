@@ -13,17 +13,6 @@
         @method('PUT')
 
         <div>
-            <label for="category_id">Category</label>
-            <select id="category_id" name="category_id" class="form-input" required>
-                @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}" {{ $subcategory->category_id == $cat->id ? 'selected' : '' }}>
-                        {{ $cat->name_en }} / {{ $cat->name_ar }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-
-        <div>
             <label for="name_en">Name (English)</label>
             <input id="name_en" name="name_en" value="{{ $subcategory->name_en }}" type="text" class="form-input" required />
         </div>

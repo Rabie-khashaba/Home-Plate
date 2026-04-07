@@ -59,6 +59,18 @@
             <small class="text-gray-500">Hold Ctrl or Cmd to select more than one category.</small>
         </div>
 
+        <div>
+            <label>Subcategories</label>
+            <select name="subcategory_ids[]" class="form-input" multiple size="5">
+                @foreach($subcategories as $subcategory)
+                    <option value="{{ $subcategory->id }}" {{ in_array($subcategory->id, old('subcategory_ids', [])) ? 'selected' : '' }}>
+                        {{ $subcategory->name_en }}
+                    </option>
+                @endforeach
+            </select>
+            <small class="text-gray-500">Optional. Hold Ctrl or Cmd to select more than one subcategory.</small>
+        </div>
+
         <div class="md:col-span-2">
             <div class="mb-3">
                 <label class="mb-1 block text-base font-semibold">Working Schedule</label>
