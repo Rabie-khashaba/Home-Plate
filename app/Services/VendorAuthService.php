@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeviceToken;
 use App\Models\Vendor;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
@@ -39,6 +40,7 @@ class VendorAuthService
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'],
                 'password' => $data['password'],
+                'fcm_token' => $data['fcm_token'] ?? null,
                 'id_front' => $data['id_front'] ?? null,
                 'id_back' => $data['id_back'] ?? null,
                 'restaurant_info' => $data['restaurant_info'] ?? null,
@@ -96,9 +98,10 @@ class VendorAuthService
         }
 
         $payload = $cached['payload'];
+        $fcmToken = $payload['fcm_token'] ?? null;
         $categoryIds = $payload['category_ids'] ?? [];
         $subcategoryIds = $payload['subcategory_ids'] ?? [];
-        unset($payload['category_ids'], $payload['subcategory_ids']);
+        unset($payload['category_ids'], $payload['subcategory_ids'], $payload['fcm_token']);
 
         $payload['category_id'] = is_array($categoryIds) ? ($categoryIds[0] ?? null) : null;
 
@@ -109,6 +112,7 @@ class VendorAuthService
         if (is_array($subcategoryIds) && ! empty($subcategoryIds)) {
             $vendor->subcategories()->sync($subcategoryIds);
         }
+        $this->syncDeviceToken($vendor, $fcmToken);
         Cache::forget($this->registerKey($phone));
 
         $token = $vendor->createToken('vendor_token')->plainTextToken;
@@ -120,7 +124,7 @@ class VendorAuthService
         ];
     }
 
-    public function login(string $phone, string $password): array
+    public function login(string $phone, string $password, ?string $fcmToken = null): array
     {
         $vendor = Vendor::where('phone', $phone)->first();
 
@@ -136,6 +140,7 @@ class VendorAuthService
         //     ]);
         // }
 
+        $this->syncDeviceToken($vendor, $fcmToken);
         $token = $vendor->createToken('vendor_token')->plainTextToken;
 
         return [
@@ -351,5 +356,22 @@ class VendorAuthService
                 'otp' => ['OTP expired.'],
             ]);
         }
+    }
+
+    private function syncDeviceToken(Vendor $vendor, ?string $fcmToken): void
+    {
+        if (! $fcmToken) {
+            return;
+        }
+
+        DeviceToken::query()->updateOrCreate(
+            ['token_hash' => DeviceToken::makeTokenHash($fcmToken)],
+            [
+                'tokenable_type' => Vendor::class,
+                'tokenable_id' => $vendor->id,
+                'token' => $fcmToken,
+                'last_used_at' => now(),
+            ]
+        );
     }
 }

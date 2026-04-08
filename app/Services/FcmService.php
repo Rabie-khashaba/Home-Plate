@@ -2,25 +2,52 @@
 
 namespace App\Services;
 
+use App\Models\AppUser;
+use App\Models\Delivery;
+use App\Models\DeviceToken;
+use App\Models\Vendor;
 use Illuminate\Support\Facades\Log;
 
 class FcmService
 {
-    public function sendToAudience(string $audience, string $title, string $body, array $extraData = []): array
+    public function __construct(
+        private readonly FirebaseNotificationService $firebaseNotificationService
+    ) {
+    }
+
+    public function sendToAudience(string $audience, string $title, string $body, array $extraData = [], array $targetIds = []): array
     {
-        // The project does not currently store FCM device tokens, so keep the
-        // notification workflow alive and report that nothing was sent.
-        Log::info('FCM notification requested without token delivery implementation.', [
-            'audience' => $audience,
-            'title' => $title,
-            'body' => $body,
-            'extra_data' => $extraData,
-        ]);
+        $tokens = DeviceToken::query()
+            ->when($audience === 'users', fn ($query) => $query->where('tokenable_type', AppUser::class))
+            ->when($audience === 'vendors', fn ($query) => $query->where('tokenable_type', Vendor::class))
+            ->when($audience === 'riders', fn ($query) => $query->where('tokenable_type', Delivery::class))
+            ->when($targetIds !== [], fn ($query) => $query->whereIn('tokenable_id', $targetIds))
+            ->pluck('token')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($tokens === []) {
+            Log::info('FCM notification requested with no registered device tokens.', [
+                'audience' => $audience,
+                'title' => $title,
+            ]);
+
+            return [
+                'success' => false,
+                'total' => 0,
+                'message' => 'No device tokens found for the selected audience.',
+            ];
+        }
+
+        $result = $this->firebaseNotificationService->sendToTokens($tokens, $title, $body, $extraData);
 
         return [
-            'success' => false,
-            'total' => 0,
-            'message' => 'FCM delivery is not configured yet.',
+            'success' => (bool) $result['status'],
+            'total' => (int) ($result['data']['success_count'] ?? 0),
+            'message' => $result['message'],
+            'details' => $result['data'] ?? [],
         ];
     }
 }

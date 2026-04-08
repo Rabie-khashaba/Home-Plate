@@ -55,7 +55,7 @@ class DeliveryAuthController extends Controller
         $data = $request->validated();
 
         try {
-            $response = $this->deliveryAuthService->login($data['phone'], $data['password']);
+            $response = $this->deliveryAuthService->login($data['phone'], $data['password'], $data['fcm_token'] ?? null);
 
             return response()->json($response);
         } catch (ValidationException $e) {

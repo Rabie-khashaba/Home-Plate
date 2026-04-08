@@ -2,13 +2,12 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class AppUser extends Authenticatable
 {
@@ -55,5 +54,20 @@ class AppUser extends Authenticatable
     public function vendorRatings(): HasMany
     {
         return $this->hasMany(VendorRating::class);
+    }
+
+    public function deviceTokens(): MorphMany
+    {
+        return $this->morphMany(DeviceToken::class, 'tokenable');
+    }
+
+    public function receivedNotifications(): MorphMany
+    {
+        return $this->morphMany(UserNotification::class, 'recipient');
+    }
+
+    public function sentNotifications(): MorphMany
+    {
+        return $this->morphMany(UserNotification::class, 'sender');
     }
 }

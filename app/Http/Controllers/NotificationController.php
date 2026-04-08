@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppUser;
+use App\Models\Delivery;
 use App\Models\PushNotification;
+use App\Models\Vendor;
 use App\Services\FcmService;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
@@ -55,7 +58,22 @@ class NotificationController extends Controller
 
     public function create()
     {
-        return view('notifications.create');
+        $appUsers = AppUser::query()
+            ->whereHas('deviceTokens')
+            ->orderBy('name')
+            ->get(['id', 'name', 'phone']);
+
+        $vendors = Vendor::query()
+            ->whereHas('deviceTokens')
+            ->orderBy('restaurant_name')
+            ->get(['id', 'restaurant_name', 'full_name', 'phone']);
+
+        $deliveries = Delivery::query()
+            ->whereHas('deviceTokens')
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'phone']);
+
+        return view('notifications.create', compact('appUsers', 'vendors', 'deliveries'));
     }
 
     public function store(Request $request, FcmService $fcm)
@@ -64,6 +82,8 @@ class NotificationController extends Controller
             'title'                   => 'required|string|max:255',
             'body'                    => 'required|string',
             'target_audience'         => 'required|in:all,users,vendors,riders',
+            'target_user_ids'         => 'nullable|array',
+            'target_user_ids.*'       => 'integer',
             'type'                    => 'required|in:immediate,scheduled,daily,weekly,monthly_day,monthly_date',
             'scheduled_at'            => 'required_if:type,scheduled|nullable|date|after:now',
             'recurrence_time'         => 'required_unless:type,immediate,scheduled|nullable|date_format:H:i',
@@ -73,6 +93,16 @@ class NotificationController extends Controller
         ]);
 
         $data['created_by'] = auth()->id();
+        $targetUserIds = collect($data['target_user_ids'] ?? [])->map(fn ($id) => (int) $id)->unique()->values()->all();
+        unset($data['target_user_ids']);
+
+        $this->validateTargetUsers($data['target_audience'], $targetUserIds);
+
+        if ($targetUserIds !== []) {
+            $data['extra_data'] = array_merge($data['extra_data'] ?? [], [
+                'target_user_ids' => $targetUserIds,
+            ]);
+        }
 
         // Set initial status
         $data['status'] = match($data['type']) {
@@ -89,7 +119,8 @@ class NotificationController extends Controller
                 $notification->target_audience,
                 $notification->title,
                 $notification->body,
-                $notification->extra_data ?? []
+                $notification->extra_data ?? [],
+                $targetUserIds
             );
 
             $notification->update([
@@ -130,7 +161,8 @@ class NotificationController extends Controller
             $notification->target_audience,
             $notification->title,
             $notification->body,
-            $notification->extra_data ?? []
+            $notification->extra_data ?? [],
+            $this->extractTargetUserIds($notification)
         );
 
         $notification->update([
@@ -143,5 +175,32 @@ class NotificationController extends Controller
             $result['success'] ? 'success' : 'error',
             $result['success'] ? 'Sent successfully.' : 'Failed to send notification.'
         );
+    }
+
+    private function validateTargetUsers(string $audience, array $targetUserIds): void
+    {
+        if ($targetUserIds === [] || $audience === 'all') {
+            return;
+        }
+
+        $count = match ($audience) {
+            'users' => AppUser::query()->whereIn('id', $targetUserIds)->whereHas('deviceTokens')->count(),
+            'vendors' => Vendor::query()->whereIn('id', $targetUserIds)->whereHas('deviceTokens')->count(),
+            'riders' => Delivery::query()->whereIn('id', $targetUserIds)->whereHas('deviceTokens')->count(),
+            default => 0,
+        };
+
+        if ($count !== count($targetUserIds)) {
+            abort(422, 'One or more selected users are invalid or do not have FCM tokens.');
+        }
+    }
+
+    private function extractTargetUserIds(PushNotification $notification): array
+    {
+        $ids = data_get($notification->extra_data, 'target_user_ids', []);
+
+        return is_array($ids)
+            ? collect($ids)->map(fn ($id) => (int) $id)->filter()->unique()->values()->all()
+            : [];
     }
 }

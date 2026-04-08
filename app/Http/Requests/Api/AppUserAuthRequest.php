@@ -42,6 +42,7 @@ class AppUserAuthRequest extends FormRequest
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|max:30',
             'password' => 'required|string|min:6',
+            'fcm_token' => 'nullable|string|max:5000',
             'gender' => 'nullable|in:male,female',
             'dob' => 'nullable|date',
             'city_id' => 'required|exists:cities,id',
@@ -64,6 +65,7 @@ class AppUserAuthRequest extends FormRequest
         return [
             'phone' => 'required|string|max:30',
             'password' => 'required|string',
+            'fcm_token' => 'nullable|string|max:5000',
         ];
     }
 

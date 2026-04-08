@@ -52,7 +52,7 @@ class AppUserAuthController extends Controller
 
         try {
             return response()->json(
-                $this->appUserAuthService->login($data['phone'], $data['password'])
+                $this->appUserAuthService->login($data['phone'], $data['password'], $data['fcm_token'] ?? null)
             );
         } catch (ValidationException $e) {
             return response()->json([

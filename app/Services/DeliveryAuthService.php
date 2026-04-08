@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Delivery;
+use App\Models\DeviceToken;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -35,6 +36,7 @@ class DeliveryAuthService
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'],
                 'password' => Hash::make($data['password']),
+                'fcm_token' => $data['fcm_token'] ?? null,
                 'city_id' => $data['city_id'],
                 'area_id' => $data['area_id'],
                 'is_active' => true,
@@ -74,7 +76,12 @@ class DeliveryAuthService
             ]);
         }
 
-        $delivery = Delivery::create($cached['payload']);
+        $payload = $cached['payload'];
+        $fcmToken = $payload['fcm_token'] ?? null;
+        unset($payload['fcm_token']);
+
+        $delivery = Delivery::create($payload);
+        $this->syncDeviceToken($delivery, $fcmToken);
         Cache::forget($this->registerKey($phone));
 
         $token = $delivery->createToken('delivery_token')->plainTextToken;
@@ -86,7 +93,7 @@ class DeliveryAuthService
         ];
     }
 
-    public function login(string $phone, string $password): array
+    public function login(string $phone, string $password, ?string $fcmToken = null): array
     {
         $delivery = Delivery::where('phone', $phone)->first();
 
@@ -102,6 +109,7 @@ class DeliveryAuthService
             ]);
         }
 
+        $this->syncDeviceToken($delivery, $fcmToken);
         $token = $delivery->createToken('delivery_token')->plainTextToken;
 
         return [
@@ -270,5 +278,22 @@ class DeliveryAuthService
                 'otp' => ['OTP expired.'],
             ]);
         }
+    }
+
+    private function syncDeviceToken(Delivery $delivery, ?string $fcmToken): void
+    {
+        if (! $fcmToken) {
+            return;
+        }
+
+        DeviceToken::query()->updateOrCreate(
+            ['token_hash' => DeviceToken::makeTokenHash($fcmToken)],
+            [
+                'tokenable_type' => Delivery::class,
+                'tokenable_id' => $delivery->id,
+                'token' => $fcmToken,
+                'last_used_at' => now(),
+            ]
+        );
     }
 }

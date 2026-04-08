@@ -12,7 +12,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Vendor extends Authenticatable
 {
-    use HasFactory , HasApiTokens;
+    use HasFactory, HasApiTokens;
 
     protected $fillable = [
         'full_name',
@@ -44,15 +44,13 @@ class Vendor extends Authenticatable
     ];
 
     protected $casts = [
-         'is_active' => 'boolean',
-         'otp_expires_at' => 'datetime',
-         'working_time' => 'array',
+        'is_active' => 'boolean',
+        'otp_expires_at' => 'datetime',
+        'working_time' => 'array',
     ];
-
 
     protected $hidden = ['password'];
 
-    // 🔹 العلاقات
     public function city()
     {
         return $this->belongsTo(City::class);
@@ -98,10 +96,23 @@ class Vendor extends Authenticatable
         return $this->morphMany(Address::class, 'addressable');
     }
 
-        // 🔹 التشفير
+    public function deviceTokens(): MorphMany
+    {
+        return $this->morphMany(DeviceToken::class, 'tokenable');
+    }
+
+    public function receivedNotifications(): MorphMany
+    {
+        return $this->morphMany(UserNotification::class, 'recipient');
+    }
+
+    public function sentNotifications(): MorphMany
+    {
+        return $this->morphMany(UserNotification::class, 'sender');
+    }
+
     public function setPasswordAttribute($value)
     {
         $this->attributes['password'] = bcrypt($value);
     }
-
 }

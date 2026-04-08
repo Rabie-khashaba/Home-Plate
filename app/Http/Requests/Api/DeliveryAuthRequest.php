@@ -42,6 +42,7 @@ class DeliveryAuthRequest extends FormRequest
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|max:30',
             'password' => 'required|string|min:6',
+            'fcm_token' => 'nullable|string|max:5000',
             'city_id' => 'required|exists:cities,id',
             'area_id' => 'required|exists:areas,id',
         ];
@@ -60,6 +61,7 @@ class DeliveryAuthRequest extends FormRequest
         return [
             'phone' => 'required|string|max:30',
             'password' => 'required|string',
+            'fcm_token' => 'nullable|string|max:5000',
         ];
     }
 

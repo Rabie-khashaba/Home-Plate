@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AppUser;
+use App\Models\DeviceToken;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -34,6 +35,7 @@ class AppUserAuthService
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'],
                 'password' => Hash::make($data['password']),
+                'fcm_token' => $data['fcm_token'] ?? null,
                 'gender' => $data['gender'] ?? null,
                 'dob' => $data['dob'] ?? null,
                 'city_id' => $data['city_id'],
@@ -76,7 +78,12 @@ class AppUserAuthService
             ]);
         }
 
-        $appUser = AppUser::create($cached['payload']);
+        $payload = $cached['payload'];
+        $fcmToken = $payload['fcm_token'] ?? null;
+        unset($payload['fcm_token']);
+
+        $appUser = AppUser::create($payload);
+        $this->syncDeviceToken($appUser, $fcmToken);
         Cache::forget($this->registerKey($phone));
 
         $token = $appUser->createToken('app_user_token')->plainTextToken;
@@ -88,7 +95,7 @@ class AppUserAuthService
         ];
     }
 
-    public function login(string $phone, string $password): array
+    public function login(string $phone, string $password, ?string $fcmToken = null): array
     {
         $appUser = AppUser::where('phone', $phone)->first();
 
@@ -104,6 +111,7 @@ class AppUserAuthService
             ]);
         }
 
+        $this->syncDeviceToken($appUser, $fcmToken);
         $token = $appUser->createToken('app_user_token')->plainTextToken;
 
         return [
@@ -272,5 +280,22 @@ class AppUserAuthService
                 'otp' => ['OTP expired.'],
             ]);
         }
+    }
+
+    private function syncDeviceToken(AppUser $appUser, ?string $fcmToken): void
+    {
+        if (! $fcmToken) {
+            return;
+        }
+
+        DeviceToken::query()->updateOrCreate(
+            ['token_hash' => DeviceToken::makeTokenHash($fcmToken)],
+            [
+                'tokenable_type' => AppUser::class,
+                'tokenable_id' => $appUser->id,
+                'token' => $fcmToken,
+                'last_used_at' => now(),
+            ]
+        );
     }
 }

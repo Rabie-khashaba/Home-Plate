@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\OrderController as ApiOrderController;
 use App\Http\Controllers\Api\VendorController as ApiVendorController;
 use App\Http\Controllers\Api\AddressController as ApiAddressController;
 use App\Http\Controllers\Api\ItemController as ApiItemController;
+use App\Http\Controllers\Api\FirebaseNotificationController as ApiFirebaseNotificationController;
 use App\Http\Controllers\Api\VendorRatingController as ApiVendorRatingController;
 
 
@@ -108,6 +109,13 @@ Route::middleware('auth:sanctum')->prefix('profile')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('notifications')->group(function () {
+        Route::post('/send', [ApiFirebaseNotificationController::class, 'send']);
+        Route::post('/send-bulk', [ApiFirebaseNotificationController::class, 'sendBulk']);
+        Route::post('/token', [ApiFirebaseNotificationController::class, 'updateToken']);
+        Route::get('/my', [ApiFirebaseNotificationController::class, 'myNotifications']);
+        Route::post('/{notification}/read', [ApiFirebaseNotificationController::class, 'markAsRead']);
+    });
 
     Route::prefix('orders')->group(function () {
         Route::post('/', [ApiOrderController::class, 'store']); // app user creates order (includes item_id)

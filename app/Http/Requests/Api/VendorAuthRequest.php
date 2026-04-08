@@ -68,6 +68,7 @@ class VendorAuthRequest extends FormRequest
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|max:30',
             'password' => 'required|string|min:6|confirmed',
+            'fcm_token' => 'nullable|string|max:5000',
             'id_front' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'id_back' => 'required|file|mimes:jpg,jpeg,png,gif,bmp,svg,webp,avif|max:5120',
             'restaurant_info' => 'required|string',
@@ -108,6 +109,7 @@ class VendorAuthRequest extends FormRequest
         return [
             'phone' => 'required|string|max:30',
             'password' => 'required|string',
+            'fcm_token' => 'nullable|string|max:5000',
         ];
     }
 

@@ -36,7 +36,7 @@ class VendorAuthController extends Controller
 
         try {
             return response()->json(
-                $this->vendorAuthService->login($data['phone'], $data['password'])
+                $this->vendorAuthService->login($data['phone'], $data['password'], $data['fcm_token'] ?? null)
             );
         } catch (ValidationException $e) {
             return response()->json([
