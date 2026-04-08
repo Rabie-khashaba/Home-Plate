@@ -88,6 +88,11 @@ class Vendor extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(VendorRating::class);
+    }
+
     public function addresses(): MorphMany
     {
         return $this->morphMany(Address::class, 'addressable');

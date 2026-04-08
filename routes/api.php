@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\OrderController as ApiOrderController;
 use App\Http\Controllers\Api\VendorController as ApiVendorController;
 use App\Http\Controllers\Api\AddressController as ApiAddressController;
 use App\Http\Controllers\Api\ItemController as ApiItemController;
+use App\Http\Controllers\Api\VendorRatingController as ApiVendorRatingController;
 
 
 
@@ -150,6 +151,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/activate', [VendorStatusController::class, 'activate']);
         Route::post('/{id}/deactivate', [VendorStatusController::class, 'deactivate']);
     });
+
+    Route::post('/orders/{orderId}/vendor-rating', [ApiVendorRatingController::class, 'store']);
 
     Route::prefix('delivery')->group(function () {
         Route::post('/{id}/status/pending', [DeliveryStatusController::class, 'setPending']);

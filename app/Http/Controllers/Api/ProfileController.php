@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppUser;
 use App\Models\Delivery;
 use App\Models\Vendor;
+use App\Models\VendorRating;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -36,20 +37,48 @@ class ProfileController extends Controller
 
     public function vendor(int $id)
     {
-        $vendor = Vendor::with(['categories', 'subcategories', 'city', 'area', 'addresses'])->findOrFail($id);
+        $vendor = Vendor::with([
+            'categories',
+            'subcategories',
+            'city',
+            'area',
+            'addresses',
+            'ratings' => fn ($query) => $query->with('appUser:id,name,photo')->latest(),
+        ])
+            ->withCount('ratings')
+            ->withAvg('ratings', 'rating')
+            ->findOrFail($id);
+
+        $data = $this->withImageUrls($vendor, [
+            'id_front',
+            'id_back',
+            'tax_card_image',
+            'commercial_register_image',
+            'main_photo',
+            'kitchen_photo_1',
+            'kitchen_photo_2',
+            'kitchen_photo_3',
+        ]);
+
+        $data['rating'] = [
+            'average' => round((float) ($vendor->ratings_avg_rating ?? 0), 1),
+            'count' => (int) ($vendor->ratings_count ?? 0),
+            'reviews' => $vendor->ratings->map(function (VendorRating $rating) {
+                return [
+                    'id' => $rating->id,
+                    'value' => (int) $rating->rating,
+                    'review' => $rating->review,
+                    'created_at' => optional($rating->created_at)?->toISOString(),
+                    'app_user' => $rating->appUser ? $this->withImageUrls($rating->appUser, ['photo']) : null,
+                ];
+            })->values(),
+        ];
+
+        unset($data['ratings'], $data['ratings_count'], $data['ratings_avg_rating']);
 
         return response()->json([
             'message' => 'Vendor profile fetched successfully.',
-            'data' => $this->withImageUrls($vendor, [
-                'id_front',
-                'id_back',
-                'tax_card_image',
-                'commercial_register_image',
-                'main_photo',
-                'kitchen_photo_1',
-                'kitchen_photo_2',
-                'kitchen_photo_3',
-            ]),
+            'data' => $data,
         ]);
     }
 

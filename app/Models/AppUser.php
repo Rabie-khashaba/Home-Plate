@@ -51,4 +51,9 @@ class AppUser extends Authenticatable
     {
         return $this->morphMany(Address::class, 'addressable');
     }
+
+    public function vendorRatings(): HasMany
+    {
+        return $this->hasMany(VendorRating::class);
+    }
 }

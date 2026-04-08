@@ -42,6 +42,7 @@ class VendorController extends Controller
                     'kitchen_photo_1' => $this->toPublicUrl($vendor->kitchen_photo_1),
                     'kitchen_photo_2' => $this->toPublicUrl($vendor->kitchen_photo_2),
                     'kitchen_photo_3' => $this->toPublicUrl($vendor->kitchen_photo_3),
+                    'rating' => $this->ratingSummary($vendor),
                 ];
             })->values(),
         ]);
@@ -76,6 +77,7 @@ class VendorController extends Controller
                 'id' => $vendor->id,
                 'name' => $vendor->restaurant_name ?: $vendor->full_name,
                 'main_photo' => $this->toPublicUrl($vendor->main_photo),
+                'rating' => $this->ratingSummary($vendor),
             ],
         ]);
     }
@@ -113,6 +115,8 @@ class VendorController extends Controller
                 ->values()
                 ->map(fn ($subcategory) => $subcategory->toArray());
 
+            $data['rating'] = $this->ratingSummary($vendor);
+
             return $data;
         });
     }
@@ -126,7 +130,16 @@ class VendorController extends Controller
             'items.category',
             'items.subcategory',
             'items.subcategories.category',
-        ]);
+        ])->withCount('ratings')
+            ->withAvg('ratings', 'rating');
+    }
+
+    private function ratingSummary(Vendor $vendor): array
+    {
+        return [
+            'average' => round((float) ($vendor->ratings_avg_rating ?? 0), 1),
+            'count' => (int) ($vendor->ratings_count ?? 0),
+        ];
     }
 
     private function toPublicUrl($value)

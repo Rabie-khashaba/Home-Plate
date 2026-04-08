@@ -111,6 +111,11 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function vendorRatings(): HasMany
+    {
+        return $this->hasMany(VendorRating::class);
+    }
+
     public function transitionTo(
         string $toStatus,
         ?string $actorType = null,
