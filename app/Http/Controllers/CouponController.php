@@ -20,8 +20,8 @@ class CouponController extends Controller
         if ($request->filled('status')) {
             match($request->get('status')) {
                 'active'    => $query->where('is_active', true)
-                                     ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
-                                     ->where(fn($q) => $q->whereNull('usage_limit')->orWhereColumn('used_count', '<', 'usage_limit')),
+                                    ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                                    ->where(fn($q) => $q->whereNull('usage_limit')->orWhereColumn('used_count', '<', 'usage_limit')),
                 'inactive'  => $query->where('is_active', false),
                 'expired'   => $query->whereNotNull('expires_at')->where('expires_at', '<=', now()),
                 default     => null,
@@ -33,9 +33,9 @@ class CouponController extends Controller
         $stats = [
             'total'    => Coupon::count(),
             'active'   => Coupon::where('is_active', true)
-                               ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
-                               ->where(fn($q) => $q->whereNull('usage_limit')->orWhereColumn('used_count', '<', 'usage_limit'))
-                               ->count(),
+                            ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                            ->where(fn($q) => $q->whereNull('usage_limit')->orWhereColumn('used_count', '<', 'usage_limit'))
+                            ->count(),
             'inactive' => Coupon::where('is_active', false)->count(),
             'expired'  => Coupon::whereNotNull('expires_at')->where('expires_at', '<=', now())->count(),
         ];
