@@ -133,42 +133,91 @@ class OrderController extends Controller
         $user = $request->user();
 
         if ($user instanceof AppUser) {
-            $orders = Order::with(['orderItems.item', 'vendor', 'delivery'])
-                ->where('app_user_id', $user->id)
+            $orders = $this->ordersQueryForActor($user)
                 ->latest()
                 ->get();
 
             return response()->json([
                 'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
-                'data' => $orders,
+                'data' => $this->withOrderItemImageUrls($orders),
             ]);
         }
 
         if ($user instanceof Vendor) {
-            $orders = Order::with(['appUser', 'delivery', 'orderItems.item'])
-                ->where('vendor_id', $user->id)
+            $orders = $this->ordersQueryForActor($user)
                 ->latest()
                 ->get();
 
             return response()->json([
                 'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
-                'data' => $orders,
+                'data' => $this->withOrderItemImageUrls($orders),
             ]);
         }
 
         if ($user instanceof Delivery) {
-            $orders = Order::with(['appUser', 'vendor', 'orderItems.item'])
-                ->where('delivery_id', $user->id)
+            $orders = $this->ordersQueryForActor($user)
                 ->latest()
                 ->get();
 
             return response()->json([
                 'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
-                'data' => $orders,
+                'data' => $this->withOrderItemImageUrls($orders),
             ]);
         }
 
         return response()->json(['message' => 'Unauthorized actor type.'], 403);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['required', 'string', 'min:1', 'max:255'],
+        ]);
+
+        $search = trim($validated['q']);
+
+        $vendors = Vendor::query()
+            ->withCount('ratings')
+            ->withAvg('ratings', 'rating')
+            ->where(function ($query) use ($search) {
+                $query
+                    ->where('restaurant_name', 'like', "%{$search}%")
+                    ->orWhere('full_name', 'like', "%{$search}%")
+                    ->orWhereHas('items', function ($itemQuery) use ($search) {
+                        $itemQuery->where('name', 'like', "%{$search}%");
+                    });
+            })
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'message' => $vendors->isEmpty() ? 'No matching vendors found.' : 'Search results fetched successfully.',
+            'data' => $vendors->map(function (Vendor $vendor) use ($search) {
+                $vendorMatchedByName = str_contains(
+                    mb_strtolower(($vendor->restaurant_name ?: $vendor->full_name ?: '')),
+                    mb_strtolower($search)
+                );
+
+                $items = Item::query()
+                    ->where('vendor_id', $vendor->id)
+                    ->latest()
+                    ->get();
+
+                return [
+                    'id' => $vendor->id,
+                    'name' => $vendor->restaurant_name ?: $vendor->full_name,
+                    'image' => $this->toPublicUrl($vendor->main_photo),
+                    'rating' => [
+                        'average' => round((float) ($vendor->ratings_avg_rating ?? 0), 1),
+                        'count' => (int) ($vendor->ratings_count ?? 0),
+                    ],
+                    'matched_by' => $vendorMatchedByName ? 'vendor' : 'item',
+                    'items' => $items->map(function (Item $item) {
+                        return $this->formatSearchItem($item);
+                    })->values(),
+                ];
+            })->values(),
+        ]);
     }
 
     public function lastOrderWithTopItem(Request $request): JsonResponse
@@ -562,11 +611,49 @@ class OrderController extends Controller
         return Order::findOrFail($id);
     }
 
+    private function ordersQueryForActor(?Model $user)
+    {
+        $query = Order::with(['appUser', 'vendor', 'delivery', 'orderItems.item']);
+
+        if ($user instanceof AppUser) {
+            return $query->where('app_user_id', $user->id);
+        }
+
+        if ($user instanceof Vendor) {
+            return $query->where('vendor_id', $user->id);
+        }
+
+        if ($user instanceof Delivery) {
+            return $query->where('delivery_id', $user->id);
+        }
+
+        return null;
+    }
+
+    private function withOrderItemImageUrls($orders)
+    {
+        return $orders->each(function ($order) {
+            $order->orderItems->each(function ($orderItem) {
+                if ($orderItem->item) {
+                    $this->applyItemImageUrls($orderItem->item);
+                }
+            });
+        });
+    }
+
     private function applyItemImageUrls(Item $item): Item
     {
         $item->photos = $this->toPublicUrl($item->photos);
 
         return $item;
+    }
+
+    private function formatSearchItem(Item $item): array
+    {
+        $data = $item->toArray();
+        $data['photos'] = $this->toPublicUrl($data['photos'] ?? []);
+
+        return $data;
     }
 
     private function notifyVendorAboutCreatedOrder(Order $order, AppUser $appUser): void

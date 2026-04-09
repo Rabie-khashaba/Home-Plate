@@ -120,6 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('orders')->group(function () {
         Route::post('/', [ApiOrderController::class, 'store']); // app user creates order (includes item_id)
         Route::get('/my', [ApiOrderController::class, 'myOrders']);
+        Route::get('/search', [ApiOrderController::class, 'search']);
         Route::get('/{id}', [ApiOrderController::class, 'show']);
     });
 
