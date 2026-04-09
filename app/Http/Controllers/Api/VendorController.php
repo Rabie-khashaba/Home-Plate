@@ -15,7 +15,7 @@ class VendorController extends Controller
 
         return response()->json([
             'message' => $vendors->isEmpty() ? 'No vendors found.' : 'Vendors fetched successfully.',
-            'data' => $this->transformVendors($vendors),
+            'data' => $vendors->map(fn (Vendor $vendor) => $this->vendorListItem($vendor))->values(),
         ]);
     }
 
@@ -119,6 +119,16 @@ class VendorController extends Controller
 
             return $data;
         });
+    }
+
+    private function vendorListItem(Vendor $vendor): array
+    {
+        return [
+            'id' => $vendor->id,
+            'name' => $vendor->full_name ?: $vendor->restaurant_name,
+            'image' => $this->toPublicUrl($vendor->main_photo),
+            'rating' => $this->ratingSummary($vendor),
+        ];
     }
 
     private function vendorsBaseQuery()

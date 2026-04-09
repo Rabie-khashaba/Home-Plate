@@ -6,18 +6,27 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\OrderPinVerificationRequest;
 use App\Models\AppUser;
 use App\Models\Delivery;
+use App\Models\DeviceToken;
 use App\Models\Item;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\UserNotification;
 use App\Models\Vendor;
+use App\Services\FirebaseNotificationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
+    public function __construct(
+        private readonly FirebaseNotificationService $firebaseNotificationService
+    ) {
+    }
+
     public function store(Request $request): JsonResponse
     {
         $appUser = $this->requireActor($request->user(), AppUser::class, 'Only app users can create orders.');
@@ -108,6 +117,9 @@ class OrderController extends Controller
                 'items_count' => count($orderLines),
             ],
         ]);
+
+        $order->loadMissing('vendor');
+        $this->notifyVendorAboutCreatedOrder($order, $appUser);
 
         return response()->json([
             'message' => 'Order created successfully.',
@@ -242,6 +254,9 @@ class OrderController extends Controller
             'Vendor started cooking and dispatched order to delivery pool.'
         );
 
+        $order->loadMissing('vendor');
+        $this->notifyDeliveriesAboutAvailableOrder($order, $vendor);
+
         return response()->json([
             'message' => 'Order sent to delivery pool successfully.',
             'data' => $order->fresh(['appUser', 'orderItems.item', 'delivery']),
@@ -272,6 +287,9 @@ class OrderController extends Controller
             'mark_ready_for_pickup',
             'Vendor marked order ready for pickup.'
         );
+
+        $order->loadMissing(['vendor', 'delivery']);
+        $this->notifyAssignedDeliveryOrderReady($order, $vendor);
 
         return response()->json([
             'message' => 'Order is ready for pickup.',
@@ -443,6 +461,9 @@ class OrderController extends Controller
             'Delivery started heading to customer.'
         );
 
+        $order->loadMissing(['appUser', 'vendor']);
+        $this->notifyAppUserOrderOutForDelivery($order, $delivery);
+
         return response()->json([
             'message' => 'Order marked as out for delivery.',
             'data' => $order->fresh(),
@@ -546,6 +567,176 @@ class OrderController extends Controller
         $item->photos = $this->toPublicUrl($item->photos);
 
         return $item;
+    }
+
+    private function notifyVendorAboutCreatedOrder(Order $order, AppUser $appUser): void
+    {
+        if (! $order->vendor) {
+            return;
+        }
+
+        $appUserName = $appUser->name ?: ('User #' . $appUser->id);
+
+        $this->sendNotificationToRecipients(
+            $appUser,
+            Vendor::class,
+            [$order->vendor_id],
+            'تم إنشاء طلب جديد',
+            "تم إنشاء أوردر جديد بواسطة {$appUserName}.",
+            $this->orderNotificationData($order, 'order_created')
+        );
+    }
+
+    private function notifyDeliveriesAboutAvailableOrder(Order $order, Vendor $vendor): void
+    {
+        $vendorName = $vendor->restaurant_name ?: $vendor->full_name ?: ('Vendor #' . $vendor->id);
+
+        $this->sendNotificationToRecipients(
+            $vendor,
+            Delivery::class,
+            [],
+            'طلب جديد متاح للتوصيل',
+            "تم إنشاء أوردر جديد من {$vendorName}.",
+            $this->orderNotificationData($order, 'order_searching_delivery')
+        );
+    }
+
+    private function notifyAssignedDeliveryOrderReady(Order $order, Vendor $vendor): void
+    {
+        if (! $order->delivery_id) {
+            return;
+        }
+
+        $vendorName = $vendor->restaurant_name ?: $vendor->full_name ?: ('Vendor #' . $vendor->id);
+
+        $this->sendNotificationToRecipients(
+            $vendor,
+            Delivery::class,
+            [$order->delivery_id],
+            'الطلب جاهز للاستلام',
+            "الأوردر جاهز للاستلام عند {$vendorName}.",
+            $this->orderNotificationData($order, 'order_ready_for_pickup')
+        );
+    }
+
+    private function notifyAppUserOrderOutForDelivery(Order $order, Delivery $delivery): void
+    {
+        if (! $order->app_user_id) {
+            return;
+        }
+
+        $deliveryName = $delivery->first_name ?: ('Delivery #' . $delivery->id);
+
+        $this->sendNotificationToRecipients(
+            $delivery,
+            AppUser::class,
+            [$order->app_user_id],
+            'الطلب في الطريق',
+            "الأوردر الخاص بك أصبح في الطريق مع {$deliveryName}.",
+            $this->orderNotificationData($order, 'order_out_for_delivery')
+        );
+    }
+
+    private function orderNotificationData(Order $order, string $type): array
+    {
+        $order->loadMissing('vendor');
+
+        return [
+            'type' => $type,
+            'order_id' => (string) $order->id,
+            'order_number' => (string) $order->order_number,
+            'status' => (string) $order->status,
+            'main_photo' => $this->resolveOrderMainPhoto($order),
+        ];
+    }
+
+    private function resolveOrderMainPhoto(Order $order): ?string
+    {
+        $vendorPhoto = $order->vendor?->main_photo;
+        if (! empty($vendorPhoto)) {
+            return $this->toPublicUrl($vendorPhoto);
+        }
+
+        $firstItem = $order->relationLoaded('orderItems')
+            ? $order->orderItems->first()?->item
+            : $order->orderItems()->with('item')->first()?->item;
+
+        $firstItemPhoto = $firstItem?->photos[0] ?? null;
+
+        return $firstItemPhoto ? $this->toPublicUrl($firstItemPhoto) : null;
+    }
+
+    private function sendNotificationToRecipients(
+        Model $sender,
+        string $recipientType,
+        array $recipientIds,
+        string $title,
+        string $body,
+        array $data = []
+    ): void {
+        try {
+            $tokens = DeviceToken::query()
+                ->where('tokenable_type', $recipientType)
+                ->when($recipientIds !== [], fn ($query) => $query->whereIn('tokenable_id', $recipientIds))
+                ->get(['token', 'tokenable_id'])
+                ->filter(fn ($deviceToken) => ! empty($deviceToken->token))
+                ->unique('token')
+                ->values();
+
+            if ($tokens->isEmpty()) {
+                return;
+            }
+
+            $result = $this->firebaseNotificationService->sendToTokens(
+                $tokens->pluck('token')->all(),
+                $title,
+                $body,
+                $data
+            );
+
+            $successfulTokens = collect($result['data']['results'] ?? [])
+                ->filter(fn ($item) => (bool) ($item['status'] ?? false) && ! empty($item['token']))
+                ->pluck('token')
+                ->all();
+
+            if ($successfulTokens === []) {
+                return;
+            }
+
+            $successfulRecipientIds = $tokens
+                ->whereIn('token', $successfulTokens)
+                ->pluck('tokenable_id')
+                ->unique()
+                ->values();
+
+            $tokens
+                ->whereIn('tokenable_id', $successfulRecipientIds)
+                ->unique('tokenable_id')
+                ->each(function ($deviceToken) use ($sender, $title, $body, $data, $recipientType) {
+                    UserNotification::query()->create([
+                        'sender_type' => $sender::class,
+                        'sender_id' => $sender->getKey(),
+                        'recipient_type' => $recipientType,
+                        'recipient_id' => $deviceToken->tokenable_id,
+                        'target_fcm_token' => $deviceToken->token,
+                        'title' => $title,
+                        'body' => $body,
+                        'data' => $data ?: null,
+                        'is_read' => false,
+                        'read_at' => null,
+                        'sent_at' => now(),
+                    ]);
+                });
+        } catch (\Throwable $throwable) {
+            Log::warning('Failed to send order notification.', [
+                'sender_type' => $sender::class,
+                'sender_id' => $sender->getKey(),
+                'recipient_type' => $recipientType,
+                'recipient_ids' => $recipientIds,
+                'title' => $title,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
     }
 
     private function toPublicUrl($value)
