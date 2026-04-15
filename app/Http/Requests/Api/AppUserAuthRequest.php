@@ -39,7 +39,7 @@ class AppUserAuthRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
+            'email' => 'required|email|max:255|unique:app_users,email',
             'phone' => 'required|string|max:30',
             'password' => 'required|string|min:6',
             'fcm_token' => 'nullable|string|max:5000',

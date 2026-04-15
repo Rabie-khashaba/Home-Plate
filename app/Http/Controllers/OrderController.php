@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppUser;
+use App\Models\Coupon;
 use App\Models\Item;
 use App\Models\Order;
 use App\Models\Vendor;
+use App\Interfaces\PaymentGatewayInterface;
+use App\Services\CouponService;
+use App\Services\OrderPaymentRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -78,7 +82,7 @@ class OrderController extends Controller
         return view('orders.create', compact('appUsers', 'vendors', 'items'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, PaymentGatewayInterface $paymentGateway, OrderPaymentRecorder $paymentRecorder, CouponService $couponService)
     {
         $validated = $request->validate([
             'app_user_id' => ['required', 'exists:app_users,id'],
@@ -90,6 +94,7 @@ class OrderController extends Controller
             'delivery_address' => ['required', 'string'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_reference' => ['nullable', 'string', 'max:255'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -132,9 +137,20 @@ class OrderController extends Controller
 
         $orderCost = round($orderCost, 2);
         $deliveryFee = round((float) ($validated['delivery_fee'] ?? 0), 2);
-        $totalAmount = round($orderCost + $deliveryFee, 2);
 
-        $order = DB::transaction(function () use ($validated, $orderLines, $orderCost, $deliveryFee, $totalAmount) {
+        $couponResult = $couponService->validateAndCalculate($validated['coupon_code'] ?? null, (float) $orderCost, (float) $deliveryFee);
+        if (($validated['coupon_code'] ?? null) && $couponResult['coupon'] === null) {
+            return back()->withErrors(['coupon_code' => $couponResult['message'] ?? 'Invalid coupon.'])->withInput();
+        }
+
+        $discountAmount = (float) ($couponResult['discount_amount'] ?? 0);
+        $totalAmount = round($orderCost + $deliveryFee - $discountAmount, 2);
+        $coupon = $couponResult['coupon'];
+
+        $paymentMethod = (string) $validated['payment_method'];
+        $appUser = AppUser::query()->findOrFail((int) $validated['app_user_id']);
+
+        $order = DB::transaction(function () use ($validated, $orderLines, $orderCost, $deliveryFee, $totalAmount, $couponResult, $coupon) {
             $order = Order::create([
                 'order_number' => $this->generateOrderNumber(),
                 'app_user_id' => $validated['app_user_id'],
@@ -142,8 +158,15 @@ class OrderController extends Controller
                 'order_cost' => $orderCost,
                 'delivery_fee' => $deliveryFee,
                 'total_amount' => $totalAmount,
+                'coupon_id' => $coupon?->id,
+                'coupon_code' => $coupon?->code,
+                'coupon_type' => $coupon?->type,
+                'coupon_value' => $coupon?->value,
+                'coupon_discount_percent' => $couponResult['discount_percent'] ?? null,
+                'coupon_discount_amount' => $couponResult['discount_amount'] ?? 0,
+                'coupon_redeemed_at' => ($coupon && $validated['payment_method'] !== 'visa') ? now() : null,
                 'payment_method' => $validated['payment_method'],
-                'payment_status' => 'paid',
+                'payment_status' => $validated['payment_method'] === 'visa' ? 'pending' : 'paid',
                 'payment_reference' => $validated['payment_reference'] ?? null,
                 'delivery_address' => $validated['delivery_address'],
                 'ordered_at' => now(),
@@ -165,6 +188,50 @@ class OrderController extends Controller
 
             return $order;
         });
+
+        if ($coupon && $paymentMethod !== 'visa') {
+            Coupon::query()->where('id', $coupon->id)->increment('used_count');
+        }
+
+        if ($paymentMethod === 'visa') {
+            $name = trim((string) ($appUser->name ?? ''));
+            $parts = preg_split('/\s+/', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $firstName = $parts[0] ?? 'Customer';
+            $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : ' ';
+
+            $paymentRequest = new Request([
+                'amount' => (float) $totalAmount,
+                'currency' => (string) config('paymob.currency', 'EGP'),
+                'delivery_needed' => false,
+                'items' => [],
+                'merchant_order_id' => 'ORDER-' . $order->id,
+                'shipping_data' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'phone_number' => (string) ($appUser->phone ?? ''),
+                    'email' => (string) ($appUser->email ?? ''),
+                ],
+            ]);
+
+            $response = $paymentGateway->sendPayment($paymentRequest);
+
+            if (($response['success'] ?? false) && ! empty($response['url'])) {
+                $order->update([
+                    'payment_reference' => $response['provider_order_id'] ?? null,
+                    'payment_status' => 'pending',
+                ]);
+
+                $paymentRecorder->createPendingPaymobPayment($order, $response, $paymentRequest->all());
+
+                return redirect()->away($response['url']);
+            }
+
+            $order->update(['payment_status' => 'unpaid']);
+
+            return redirect()
+                ->route('orders.show', $order)
+                ->withErrors(['payment' => 'تعذر إنشاء رابط الدفع. راجع إعدادات Paymob وحاول مرة أخرى.']);
+        }
 
         return redirect()
             ->route('orders.show', $order)

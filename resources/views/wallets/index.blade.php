@@ -1,4 +1,4 @@
-@extends('partial.master')
+﻿@extends('partial.master')
 @section('title', 'Wallets & Earnings')
 
 @section('content')
@@ -52,7 +52,7 @@
                 @forelse($vendorWallets as $w)
                 <tr>
                     <td>{{ $w->owner_id }}</td>
-                    <td class="font-medium">{{ $w->owner->restaurant_name ?? $w->owner->full_name ?? '—' }}</td>
+                    <td class="font-medium">{{ $w->owner->full_name ?? $w->owner->restaurant_name ?? 'غير متاح' }}</td>
                     <td><span class="font-bold {{ $w->balance < 0 ? 'text-danger' : 'text-success' }}">{{ number_format((float)$w->balance, 2) }}</span></td>
                     <td>{{ number_format((float)$w->total_earned, 2) }}</td>
                     <td>{{ number_format((float)$w->total_withdrawn, 2) }}</td>
@@ -79,7 +79,7 @@
                 @forelse($deliveryWallets as $w)
                 <tr>
                     <td>{{ $w->owner_id }}</td>
-                    <td class="font-medium">{{ $w->owner->first_name ?? $w->owner->full_name ?? '—' }}</td>
+                    <td class="font-medium">{{ $w->owner->first_name ?? $w->owner->full_name ?? 'غير متاح' }}</td>
                     <td><span class="font-bold {{ $w->balance < 0 ? 'text-danger' : 'text-success' }}">{{ number_format((float)$w->balance, 2) }}</span></td>
                     <td>{{ number_format((float)$w->total_earned, 2) }}</td>
                     <td>{{ number_format((float)$w->total_withdrawn, 2) }}</td>
@@ -95,3 +95,4 @@
 </div>
 @endif
 @endsection
+

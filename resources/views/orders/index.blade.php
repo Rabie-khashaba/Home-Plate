@@ -23,6 +23,7 @@
                     <th>Order Number</th>
                     {{-- <th>Order Content</th> --}}
                     <th>Order Cost</th>
+                    <th>Payment Status</th>
                    {{-- <th>Payment Method</th> --}}
                    {{-- <th>Address</th> --}}
                     <th>Order Date</th>
@@ -48,6 +49,21 @@
                         <!--    @endif-->
                         <!--</td>-->
                         <td>{{ number_format((float) $order->order_cost, 2) }}</td>
+                        @php
+                            $ps = $order->payment_status ?? 'unpaid';
+                            $pc = match($ps) {
+                                'payment_confirmed', 'paid' => '#22c55e',
+                                'pending' => '#3b82f6',
+                                'unpaid', 'failed' => '#ef4444',
+                                'refunded' => '#f59e0b',
+                                default => '#6b7280'
+                            };
+                        @endphp
+                        <td>
+                            <span style="background:{{ $pc }}20;color:{{ $pc }};border:1px solid {{ $pc }}40;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600">
+                                {{ ucwords(str_replace('_', ' ', $ps)) }}
+                            </span>
+                        </td>
                         <!--<td>{{ $order->paymentMethodLabel() }}</td>-->
                         <!--<td>{{ \Illuminate\Support\Str::limit($order->delivery_address, 40) }}</td>-->
                         <td>{{ $order->ordered_at?->format('Y-m-d H:i') ?? $order->created_at?->format('Y-m-d H:i') }}</td>
@@ -66,7 +82,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="11" class="text-center py-6">No orders found.</td>
+                        <td colspan="10" class="text-center py-6">No orders found.</td>
                     </tr>
                 @endforelse
             </tbody>

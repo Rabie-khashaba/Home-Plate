@@ -39,6 +39,7 @@
                 <select name="payment_status" class="form-select h-9 text-sm w-36" onchange="this.form.submit()">
                     <option value="">All Status</option>
                     <option value="paid" {{ request('payment_status') === 'paid' ? 'selected' : '' }}>Paid</option>
+                    <option value="payment_confirmed" {{ request('payment_status') === 'payment_confirmed' ? 'selected' : '' }}>Payment Confirmed</option>
                     <option value="unpaid" {{ request('payment_status') === 'unpaid' ? 'selected' : '' }}>Unpaid</option>
                     <option value="pending" {{ request('payment_status') === 'pending' ? 'selected' : '' }}>Pending</option>
                     <option value="refunded" {{ request('payment_status') === 'refunded' ? 'selected' : '' }}>Refunded</option>
@@ -113,12 +114,12 @@
                 @forelse($transactions as $tx)
                 @php
                     $ps = $tx->payment_status ?? 'unknown';
-                    $pc = match($ps) { 'paid' => '#22c55e', 'refunded' => '#f59e0b', 'unpaid' => '#ef4444', default => '#6b7280' };
+                    $pc = match($ps) { 'paid' => '#22c55e', 'payment_confirmed' => '#22c55e', 'refunded' => '#f59e0b', 'unpaid' => '#ef4444', 'pending' => '#3b82f6', default => '#6b7280' };
                 @endphp
                 <tr>
                     <td><a href="{{ route('orders.show', $tx) }}" class="text-primary font-medium hover:underline">{{ $tx->order_number }}</a></td>
                     <td class="text-sm">{{ $tx->appUser->name ?? '—' }}</td>
-                    <td class="text-sm">{{ $tx->vendor->restaurant_name ?? '—' }}</td>
+                    <td class="text-sm">{{ $tx->vendor->full_name ?? $tx->vendor->restaurant_name ?? '—' }}</td>
                     <td>{{ number_format((float)$tx->order_cost, 2) }}</td>
                     <td>{{ number_format((float)$tx->delivery_fee, 2) }}</td>
                     <td class="font-semibold">{{ number_format((float)$tx->total_amount, 2) }}</td>
@@ -133,6 +134,117 @@
             </tbody>
         </table>
         <div class="mt-4">{{ $transactions->links() }}</div>
+    </div>
+</div>
+
+<div class="panel mt-6">
+    <div class="mb-4 flex items-center justify-between">
+        <div>
+            <h5 class="text-lg font-semibold dark:text-white-light">Wallet Transactions (Credit / Debit)</h5>
+            @if($walletTransactions->total() > 0)
+            <p class="text-sm text-gray-500 mt-1">Showing {{ $walletTransactions->firstItem() }}–{{ $walletTransactions->lastItem() }} of <strong>{{ $walletTransactions->total() }}</strong></p>
+            @endif
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Owner</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Balance After</th>
+                    <th>Order</th>
+                    <th>Description</th>
+                    <th>By</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($walletTransactions as $wtx)
+                @php
+                    $owner = $wtx->wallet?->owner;
+                    $ownerName = $owner?->full_name
+                        ?? $owner?->restaurant_name
+                        ?? $owner?->first_name
+                        ?? $owner?->name
+                        ?? '—';
+                    $tc = $wtx->type === 'credit' ? '#22c55e' : '#ef4444';
+                @endphp
+                <tr>
+                    <td>{{ $wtx->id }}</td>
+                    <td class="text-sm">{{ $ownerName }}</td>
+                    <td><span style="background:{{ $tc }}20;color:{{ $tc }};border:1px solid {{ $tc }}40;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600">{{ ucfirst($wtx->type) }}</span></td>
+                    <td>{{ number_format((float) $wtx->amount, 2) }}</td>
+                    <td>{{ number_format((float) $wtx->balance_after, 2) }}</td>
+                    <td>
+                        @if($wtx->order)
+                            <a href="{{ route('orders.show', $wtx->order) }}" class="text-primary font-medium hover:underline">{{ $wtx->order->order_number }}</a>
+                        @else
+                            —
+                        @endif
+                    </td>
+                    <td class="text-sm">{{ $wtx->description }}</td>
+                    <td class="text-sm">{{ $wtx->createdBy->name ?? '—' }}</td>
+                    <td class="text-xs text-gray-500 whitespace-nowrap">{{ $wtx->created_at?->format('d M Y H:i') }}</td>
+                </tr>
+                @empty
+                <tr><td colspan="9" class="text-center text-gray-400 py-10">No wallet transactions found.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+        <div class="mt-4">{{ $walletTransactions->links() }}</div>
+    </div>
+</div>
+
+<div class="panel mt-6">
+    <div class="mb-4 flex items-center justify-between">
+        <div>
+            <h5 class="text-lg font-semibold dark:text-white-light">Payments (Paymob)</h5>
+            @if($payments->total() > 0)
+            <p class="text-sm text-gray-500 mt-1">Showing {{ $payments->firstItem() }}–{{ $payments->lastItem() }} of <strong>{{ $payments->total() }}</strong></p>
+            @endif
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Order</th>
+                    <th>Provider</th>
+                    <th>Status</th>
+                    <th>Amount</th>
+                    <th>Ref</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($payments as $pay)
+                <tr>
+                    <td>{{ $pay->id }}</td>
+                    <td>
+                        @if($pay->order)
+                            <a href="{{ route('orders.show', $pay->order) }}" class="text-primary font-medium hover:underline">{{ $pay->order->order_number }}</a>
+                        @else
+                            —
+                        @endif
+                    </td>
+                    <td><span class="badge badge-outline-info text-xs">{{ $pay->provider }}</span></td>
+                    <td>{{ $pay->status }}</td>
+                    <td>{{ number_format((float) $pay->amount, 2) }} {{ $pay->currency }}</td>
+                    <td class="text-xs text-gray-400 font-mono">{{ $pay->reference ?? $pay->provider_transaction_id ?? '—' }}</td>
+                    <td class="text-xs text-gray-500 whitespace-nowrap">{{ ($pay->paid_at ?? $pay->created_at)?->format('d M Y H:i') }}</td>
+                </tr>
+                @empty
+                <tr><td colspan="7" class="text-center text-gray-400 py-10">No payments found.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+        <div class="mt-4">{{ $payments->links() }}</div>
     </div>
 </div>
 @endsection

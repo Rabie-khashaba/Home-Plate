@@ -75,6 +75,11 @@
                 <input type="text" name="payment_reference" class="form-input" value="{{ old('payment_reference') }}">
             </div>
 
+            <div>
+                <label>Coupon Code</label>
+                <input type="text" name="coupon_code" class="form-input" value="{{ old('coupon_code') }}" placeholder="Optional coupon code">
+            </div>
+
             <div class="md:col-span-2 xl:col-span-1">
                 <label>Notes</label>
                 <input type="text" name="notes" class="form-input" value="{{ old('notes') }}" placeholder="Optional notes">

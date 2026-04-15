@@ -16,6 +16,10 @@
             <p><strong>Order Cost:</strong> {{ number_format((float) $order->order_cost, 2) }}</p>
             <p><strong>Delivery Fee:</strong> {{ number_format((float) $order->delivery_fee, 2) }}</p>
             <p><strong>Total Amount:</strong> {{ number_format((float) $order->total_amount, 2) }}</p>
+            @if(($order->coupon_code ?? null) || ((float)($order->coupon_discount_amount ?? 0) > 0))
+                <p><strong>Coupon:</strong> {{ $order->coupon_code ?? '—' }}</p>
+                <p><strong>Discount:</strong> {{ number_format((float) ($order->coupon_discount_amount ?? 0), 2) }} @if($order->coupon_discount_percent) ({{ number_format((float) $order->coupon_discount_percent, 2) }}%) @endif</p>
+            @endif
             <p><strong>Payment Method:</strong> {{ $order->paymentMethodLabel() }}</p>
             <p><strong>Payment Status:</strong> {{ ucfirst($order->payment_status) }}</p>
             <p><strong>Delivery Address:</strong> {{ $order->delivery_address }}</p>

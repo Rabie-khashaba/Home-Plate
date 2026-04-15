@@ -6,11 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
     use HasFactory;
 
+    public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
     public const STATUS_PENDING_VENDOR_PREPARATION = 'pending_vendor_preparation';
     public const STATUS_SEARCHING_DELIVERY = 'searching_delivery';
     public const STATUS_DELIVERY_ASSIGNED = 'delivery_assigned';
@@ -29,6 +31,13 @@ class Order extends Model
         'order_cost',
         'delivery_fee',
         'total_amount',
+        'coupon_id',
+        'coupon_code',
+        'coupon_type',
+        'coupon_value',
+        'coupon_discount_percent',
+        'coupon_discount_amount',
+        'coupon_redeemed_at',
         'payment_method',
         'payment_status',
         'payment_reference',
@@ -53,6 +62,10 @@ class Order extends Model
         'order_cost' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'coupon_value' => 'decimal:2',
+        'coupon_discount_percent' => 'decimal:2',
+        'coupon_discount_amount' => 'decimal:2',
+        'coupon_redeemed_at' => 'datetime',
         'ordered_at' => 'datetime',
         'pin_verified_at' => 'datetime',
         'started_cooking_at' => 'datetime',
@@ -69,6 +82,7 @@ class Order extends Model
     public static function statuses(): array
     {
         return [
+            self::STATUS_AWAITING_PAYMENT,
             self::STATUS_PENDING_VENDOR_PREPARATION,
             self::STATUS_SEARCHING_DELIVERY,
             self::STATUS_DELIVERY_ASSIGNED,
@@ -114,6 +128,16 @@ class Order extends Model
     public function vendorRatings(): HasMany
     {
         return $this->hasMany(VendorRating::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class)->latest();
+    }
+
+    public function latestPayment(): HasOne
+    {
+        return $this->hasOne(Payment::class)->latestOfMany();
     }
 
     public function transitionTo(

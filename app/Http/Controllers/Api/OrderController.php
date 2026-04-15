@@ -12,6 +12,10 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\UserNotification;
 use App\Models\Vendor;
+use App\Models\Coupon;
+use App\Interfaces\PaymentGatewayInterface;
+use App\Services\CouponService;
+use App\Services\OrderPaymentRecorder;
 use App\Services\FirebaseNotificationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -27,7 +31,7 @@ class OrderController extends Controller
     ) {
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, PaymentGatewayInterface $paymentGateway, OrderPaymentRecorder $paymentRecorder, CouponService $couponService): JsonResponse
     {
         $appUser = $this->requireActor($request->user(), AppUser::class, 'Only app users can create orders.');
         if ($appUser instanceof JsonResponse) {
@@ -41,6 +45,7 @@ class OrderController extends Controller
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['required', 'in:vodafone_cash,instapay,visa'],
             'payment_reference' => ['nullable', 'string', 'max:255'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
             'delivery_address' => ['required', 'string'],
             'notes' => ['nullable', 'string'],
         ]);
@@ -84,7 +89,16 @@ class OrderController extends Controller
 
         $orderCost = round($orderCost, 2);
         $deliveryFee = round((float) ($validated['delivery_fee'] ?? 0), 2);
-        $totalAmount = round($orderCost + $deliveryFee, 2);
+
+        $couponResult = $couponService->validateAndCalculate($validated['coupon_code'] ?? null, (float) $orderCost, (float) $deliveryFee);
+        if (($validated['coupon_code'] ?? null) && $couponResult['coupon'] === null) {
+            return response()->json(['message' => $couponResult['message'] ?? 'Invalid coupon.'], 422);
+        }
+
+        $discountAmount = (float) ($couponResult['discount_amount'] ?? 0);
+        $totalAmount = round($orderCost + $deliveryFee - $discountAmount, 2);
+        $paymentMethod = (string) $validated['payment_method'];
+        $coupon = $couponResult['coupon'];
 
         $order = Order::create([
             'order_number' => $this->generateOrderNumber(),
@@ -93,12 +107,21 @@ class OrderController extends Controller
             'order_cost' => $orderCost,
             'delivery_fee' => $deliveryFee,
             'total_amount' => $totalAmount,
+            'coupon_id' => $coupon?->id,
+            'coupon_code' => $coupon?->code,
+            'coupon_type' => $coupon?->type,
+            'coupon_value' => $coupon?->value,
+            'coupon_discount_percent' => $couponResult['discount_percent'] ?? null,
+            'coupon_discount_amount' => $couponResult['discount_amount'] ?? 0,
+            'coupon_redeemed_at' => ($coupon && $paymentMethod !== 'visa') ? now() : null,
             'payment_method' => $validated['payment_method'],
-            'payment_status' => 'paid',
+            'payment_status' => $paymentMethod === 'visa' ? 'pending' : 'paid',
             'payment_reference' => $validated['payment_reference'] ?? null,
             'delivery_address' => $validated['delivery_address'],
             'ordered_at' => now(),
-            'status' => Order::STATUS_PENDING_VENDOR_PREPARATION,
+            'status' => $paymentMethod === 'visa'
+                ? Order::STATUS_AWAITING_PAYMENT
+                : Order::STATUS_PENDING_VENDOR_PREPARATION,
             'delivery_pin' => (string) random_int(1000, 9999),
             'notes' => $validated['notes'] ?? null,
         ]);
@@ -121,10 +144,50 @@ class OrderController extends Controller
         $order->loadMissing('vendor');
         $this->notifyVendorAboutCreatedOrder($order, $appUser);
 
+        if ($coupon && $paymentMethod !== 'visa') {
+            Coupon::query()->where('id', $coupon->id)->increment('used_count');
+        }
+
+        $paymentUrl = null;
+        if ($paymentMethod === 'visa') {
+            $name = trim((string) ($appUser->name ?? ''));
+            $parts = preg_split('/\s+/', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $firstName = $parts[0] ?? 'Customer';
+            $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : ' ';
+
+            $paymentRequest = new Request([
+                'amount' => (float) $totalAmount,
+                'currency' => (string) config('paymob.currency', 'EGP'),
+                'delivery_needed' => false,
+                'items' => [],
+                'merchant_order_id' => 'ORDER-' . $order->id,
+                'shipping_data' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'phone_number' => (string) ($appUser->phone ?? ''),
+                    'email' => (string) ($appUser->email ?? ''),
+                ],
+            ]);
+
+            $paymentResponse = $paymentGateway->sendPayment($paymentRequest);
+            if (($paymentResponse['success'] ?? false) && ! empty($paymentResponse['url'])) {
+                $paymentUrl = (string) $paymentResponse['url'];
+                $order->update([
+                    'payment_reference' => $paymentResponse['provider_order_id'] ?? null,
+                    'payment_status' => 'pending',
+                ]);
+
+                $paymentRecorder->createPendingPaymobPayment($order, $paymentResponse, $paymentRequest->all());
+            } else {
+                $order->update(['payment_status' => 'unpaid']);
+            }
+        }
+
         return response()->json([
             'message' => 'Order created successfully.',
-            'data' => $order->load(['orderItems.item', 'vendor:id,restaurant_name,full_name,phone']),
+            'data' => $order->load(['orderItems.item', 'vendor:id,restaurant_name,full_name,phone', 'latestPayment']),
             'delivery_pin' => $order->delivery_pin, // visible to app user only
+            'payment_url' => $paymentUrl,
         ], 201);
     }
 
@@ -133,39 +196,235 @@ class OrderController extends Controller
         $user = $request->user();
 
         if ($user instanceof AppUser) {
-            $orders = $this->ordersQueryForActor($user)
-                ->latest()
-                ->get();
+            $query = $this->ordersQueryForActor($user);
+            $this->applyOrdersFilters($query, $request);
+            $this->withVendorItems($query);
+            $orders = $query->latest()->get();
 
             return response()->json([
                 'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
-                'data' => $this->withOrderItemImageUrls($orders),
+                'data' => $this->withVendorDetails($this->withOrderItemImageUrls($orders)),
             ]);
         }
 
         if ($user instanceof Vendor) {
-            $orders = $this->ordersQueryForActor($user)
-                ->latest()
-                ->get();
+            $query = $this->ordersQueryForActor($user);
+            $this->applyOrdersFilters($query, $request);
+            $this->withVendorItems($query);
+            $orders = $query->latest()->get();
 
             return response()->json([
                 'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
-                'data' => $this->withOrderItemImageUrls($orders),
+                'data' => $this->withVendorDetails($this->withOrderItemImageUrls($orders)),
             ]);
         }
 
         if ($user instanceof Delivery) {
-            $orders = $this->ordersQueryForActor($user)
-                ->latest()
-                ->get();
+            $query = $this->ordersQueryForActor($user);
+            $this->applyOrdersFilters($query, $request);
+            $this->withVendorItems($query);
+            $orders = $query->latest()->get();
 
             return response()->json([
                 'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
-                'data' => $this->withOrderItemImageUrls($orders),
+                'data' => $this->withVendorDetails($this->withOrderItemImageUrls($orders)),
             ]);
         }
 
         return response()->json(['message' => 'Unauthorized actor type.'], 403);
+    }
+
+    public function ordersByUserId(Request $request, int $appUserId): JsonResponse
+    {
+        $user = $request->user();
+
+        $query = Order::query()
+            ->with([
+                'appUser',
+                'vendor:id,full_name,restaurant_name,main_photo',
+                'delivery',
+                'orderItems.item',
+                'latestPayment' => function ($paymentQuery) {
+                    $paymentQuery->select([
+                        'payments.id',
+                        'payments.order_id',
+                        'payments.amount',
+                        'payments.currency',
+                        'payments.status',
+                        'payments.paid_at',
+                        'payments.reference',
+                        'payments.provider_transaction_id',
+                        'payments.provider_order_id',
+                        'payments.provider',
+                        'payments.iframe_url',
+                    ]);
+                },
+            ])
+            ->where('app_user_id', $appUserId);
+
+
+
+        if ($user instanceof Vendor) {
+            $query->where('vendor_id', $user->id);
+        }
+
+        if ($user instanceof Delivery) {
+            $query->where('delivery_id', $user->id);
+        }
+
+        $this->applyOrdersFilters($query, $request);
+
+        $orders = $query->latest()->get();
+
+        $this->withVendorDetails($this->withOrderItemImageUrls($orders));
+
+        return response()->json([
+            'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
+            'data' => $this->presentOrdersWithLiteVendorAndLatestPayment($orders),
+        ]);
+    }
+
+    private function presentOrdersWithLiteVendorAndLatestPayment($orders): array
+    {
+        return $orders
+            ->map(function (Order $order) {
+                $vendor = $order->vendor;
+                $latestPayment = $order->latestPayment;
+
+                $orderedAt = $order->ordered_at ?? $order->created_at;
+                $paidAt = $latestPayment?->paid_at;
+
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'app_user_id' => $order->app_user_id,
+                    'vendor_id' => $order->vendor_id,
+                    'delivery_id' => $order->delivery_id,
+                    'order_cost' => $order->order_cost,
+                    'delivery_fee' => $order->delivery_fee,
+                    'total_amount' => $order->total_amount,
+                    'payment_method' => $order->payment_method,
+                    'payment_status' => $order->payment_status,
+                    'payment_reference' => $order->payment_reference,
+                    'status' => $order->status,
+                    'delivery_address' => $order->delivery_address,
+                    'ordered_at' => $orderedAt ? $orderedAt->toDateTimeString() : null,
+                    'notes' => $order->notes,
+                    'coupon_code' => $order->coupon_code,
+                    'coupon_discount_percent' => $order->coupon_discount_percent,
+                    'coupon_discount_amount' => $order->coupon_discount_amount,
+                    'vendor' => $vendor ? [
+                        'id' => $vendor->id,
+                        'full_name' => $vendor->full_name,
+                        'restaurant_name' => $vendor->restaurant_name,
+                        'main_photo' => $vendor->main_photo,
+                    ] : null,
+                    'latest_payment' => $latestPayment ? [
+                        'id' => $latestPayment->id,
+                        'provider' => $latestPayment->provider,
+                        'status' => $latestPayment->status,
+                        'amount' => $latestPayment->amount,
+                        'currency' => $latestPayment->currency,
+                        'reference' => $latestPayment->reference,
+                        'provider_order_id' => $latestPayment->provider_order_id,
+                        'provider_transaction_id' => $latestPayment->provider_transaction_id,
+                        'paid_at' => $paidAt ? $paidAt->toDateTimeString() : null,
+                        'payment_url' => $latestPayment->iframe_url,
+                    ] : null,
+                    'payment_url' => ($order->payment_method === 'visa'
+                        && ($order->payment_status === 'pending')
+                        && $latestPayment
+                        && ($latestPayment->status === 'pending')
+                        && ! empty($latestPayment->iframe_url))
+                        ? (string) $latestPayment->iframe_url
+                        : null,
+                    'order_items' => $order->orderItems
+                        ? $order->orderItems->map(function (OrderItem $orderItem) {
+                            $item = $orderItem->item;
+
+                            return [
+                                'id' => $orderItem->id,
+                                'item_id' => $orderItem->item_id,
+                                'item_name' => $orderItem->item_name,
+                                'quantity' => $orderItem->quantity,
+                                'unit_price' => $orderItem->unit_price,
+                                'discount_amount' => $orderItem->discount_amount,
+                                'line_total' => $orderItem->line_total,
+                                'item' => $item ? [
+                                    'id' => $item->id,
+                                    'name' => $item->name,
+                                    'price' => $item->price,
+                                    'discount' => $item->discount,
+                                    'photos' => $item->photos,
+                                ] : null,
+                            ];
+                        })->values()->all()
+                        : [],
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    public function filter(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', 'max:50'],
+            'payment_status' => ['nullable', 'string', 'max:50'],
+            'tab' => ['nullable', 'string', 'max:50'], // cancelled | delivered | confirmed_payment
+            'app_user_id' => ['nullable', 'integer'],
+            'vendor_id' => ['nullable', 'integer'],
+            'delivery_id' => ['nullable', 'integer'],
+        ]);
+
+        $query = Order::query()->with([
+            'appUser',
+            'vendor:id,full_name,restaurant_name,main_photo',
+            'delivery',
+            'orderItems.item',
+            'latestPayment' => function ($paymentQuery) {
+                $paymentQuery->select([
+                    'payments.id',
+                    'payments.order_id',
+                    'payments.amount',
+                    'payments.currency',
+                    'payments.status',
+                    'payments.paid_at',
+                    'payments.reference',
+                    'payments.provider_transaction_id',
+                    'payments.provider_order_id',
+                    'payments.provider',
+                    'payments.iframe_url',
+                ]);
+            },
+        ]);
+
+        if ($user instanceof AppUser) {
+            $query->where('app_user_id', $user->id);
+        } elseif ($user instanceof Vendor) {
+            $query->where('vendor_id', $user->id);
+        } elseif ($user instanceof Delivery) {
+            $query->where('delivery_id', $user->id);
+        } else {
+            return response()->json(['message' => 'Unauthorized actor type.'], 403);
+        }
+
+        $query->when($validated['app_user_id'] ?? null, fn($q) => $q->where('app_user_id', (int) $validated['app_user_id']));
+        $query->when($validated['vendor_id'] ?? null, fn($q) => $q->where('vendor_id', (int) $validated['vendor_id']));
+        $query->when($validated['delivery_id'] ?? null, fn($q) => $q->where('delivery_id', (int) $validated['delivery_id']));
+
+        $this->applyOrdersFilters($query, $request);
+
+        $orders = $query->latest()->get();
+
+        $this->withVendorDetails($this->withOrderItemImageUrls($orders));
+
+        return response()->json([
+            'message' => $orders->isEmpty() ? 'No orders found.' : 'Orders fetched successfully.',
+            'data' => $this->presentOrdersWithLiteVendorAndLatestPayment($orders),
+        ]);
     }
 
     public function search(Request $request): JsonResponse
@@ -588,7 +847,7 @@ class OrderController extends Controller
         }
 
         return response()->json([
-            'data' => $order->load(['appUser', 'vendor', 'delivery', 'orderItems.item', 'statusLogs']),
+            'data' => $order->load(['appUser', 'vendor', 'delivery', 'orderItems.item', 'statusLogs', 'payments']),
         ]);
     }
 
@@ -613,7 +872,7 @@ class OrderController extends Controller
 
     private function ordersQueryForActor(?Model $user)
     {
-        $query = Order::with(['appUser', 'vendor', 'delivery', 'orderItems.item']);
+        $query = Order::with(['appUser', 'vendor', 'delivery', 'orderItems.item', 'latestPayment']);
 
         if ($user instanceof AppUser) {
             return $query->where('app_user_id', $user->id);
@@ -646,6 +905,58 @@ class OrderController extends Controller
         $item->photos = $this->toPublicUrl($item->photos);
 
         return $item;
+    }
+
+    private function withVendorItems($query): void
+    {
+        $query->with([
+            'vendor.items' => function ($itemsQuery) {
+                $itemsQuery
+                    ->where('approval_status', 'approved')
+                    ->where('availability_status', 'published')
+                    ->select(['id', 'vendor_id', 'name', 'price', 'discount', 'photos']);
+            },
+        ]);
+    }
+
+    private function withVendorDetails($orders)
+    {
+        return $orders->each(function ($order) {
+            if (! $order->vendor) {
+                return;
+            }
+
+            $order->vendor->main_photo = $this->toPublicUrl($order->vendor->main_photo);
+
+            if ($order->vendor->relationLoaded('items')) {
+                $order->vendor->items->each(function ($item) {
+                    $this->applyItemImageUrls($item);
+                });
+            }
+        });
+    }
+
+    private function applyOrdersFilters($query, Request $request): void
+    {
+        $tab = $request->get('tab');
+
+        if (! $request->filled('status') && ! $request->filled('payment_status') && is_string($tab) && $tab !== '') {
+            if ($tab === 'cancelled') {
+                $query->where('status', Order::STATUS_CANCELLED);
+            } elseif ($tab === 'delivered') {
+                $query->where('status', Order::STATUS_DELIVERED);
+            } elseif ($tab === 'confirmed_payment') {
+                $query->where('payment_status', 'payment_confirmed');
+            }
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->get('status'));
+        }
+
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->get('payment_status'));
+        }
     }
 
     private function formatSearchItem(Item $item): array

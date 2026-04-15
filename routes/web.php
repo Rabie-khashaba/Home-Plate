@@ -144,7 +144,6 @@ Route::get('/', function () {
 
      Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
      Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
-     Route::get('payments/paymob/response', [PaymobRedirectController::class, 'response'])->name('payments.paymob.response');
      Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
 
      Route::prefix('wallets')->name('wallets.')->group(function () {
@@ -202,6 +201,11 @@ Route::get('/', function () {
 
 });
 
+Route::get('pay', [PaymentController::class, 'showPaymentPage'])->name('payment.form');
+Route::post('pay', [PaymentController::class, 'paymentPageSubmit'])->name('payment.process.web');
+Route::get('payment-success', [PaymentController::class, 'success'])->name('payment.success');
+Route::get('payment-failed', [PaymentController::class, 'failed'])->name('payment.failed');
+Route::match(['GET', 'POST'], 'payments/paymob/response', [PaymobRedirectController::class, 'response'])->name('payments.paymob.response');
 
 
 

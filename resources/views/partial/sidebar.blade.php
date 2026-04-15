@@ -128,6 +128,24 @@
                                     </a>
                                 </li>
 
+                                <!-- Payments -->
+                                <li class="menu nav-item">
+                                    <a href="{{ route('payments.index') }}"
+                                    @class([
+                                        'nav-link group flex w-full items-center justify-start dark:text-[#506690] hover:text-primary',
+                                        'active' => request()->routeIs('payments.*')
+                                    ])>
+                                        <div class="flex items-center">
+                                            <svg class="shrink-0 group-hover:!text-primary" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.5"/>
+                                                <path d="M3 10h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                                <path d="M7 15h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                            </svg>
+                                            <span class="ltr:pl-3 rtl:pr-3">Payments</span>
+                                        </div>
+                                    </a>
+                                </li>
+
                                 <!-- Wallets -->
                                 <li class="menu nav-item">
                                     <a href="{{ route('wallets.index') }}"

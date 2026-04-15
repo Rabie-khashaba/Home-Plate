@@ -1,12 +1,12 @@
-@extends('partial.master')
-@section('title', 'Wallet — ' . ($owner->restaurant_name ?? $owner->first_name ?? 'Owner'))
+﻿@extends('partial.master')
+@section('title', 'Wallet — ' . ($owner->full_name ?? $owner->restaurant_name ?? $owner->first_name ?? 'Owner'))
 
 @section('content')
 
 <div class="mb-4 flex items-center gap-3">
-    <a href="{{ route('wallets.index') }}" class="btn btn-outline-secondary btn-sm">← Back</a>
+    <a href="{{ route('wallets.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
     <h5 class="text-lg font-semibold dark:text-white-light">
-        Wallet — {{ $ownerType === 'vendor' ? ($owner->restaurant_name ?? $owner->full_name) : ($owner->first_name ?? 'Rider #'.$owner->id) }}
+        Wallet — {{ $ownerType === 'vendor' ? ($owner->full_name ?? $owner->restaurant_name) : ($owner->first_name ?? 'Rider #'.$owner->id) }}
     </h5>
 </div>
 
@@ -37,7 +37,7 @@
                     <label class="block text-sm font-medium mb-1">Type</label>
                     <select name="type" class="form-select">
                         <option value="credit">Credit (+)</option>
-                        <option value="debit">Debit (−)</option>
+                        <option value="debit">Debit (-)</option>
                     </select>
                 </div>
                 <div>
@@ -69,13 +69,13 @@
                     <td class="text-xs text-gray-400">{{ $tx->id }}</td>
                     <td>
                         @if($isCredit)
-                        <span style="background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600">▲ Credit</span>
+                        <span style="background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600">Credit</span>
                         @else
-                        <span style="background:#ef444420;color:#ef4444;border:1px solid #ef444440;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600">▼ Debit</span>
+                        <span style="background:#ef444420;color:#ef4444;border:1px solid #ef444440;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600">Debit</span>
                         @endif
                     </td>
                     <td class="font-semibold {{ $isCredit ? 'text-success' : 'text-danger' }}">
-                        {{ $isCredit ? '+' : '−' }}{{ number_format((float)$tx->amount, 2) }}
+                        {{ $isCredit ? '+' : '-' }}{{ number_format((float)$tx->amount, 2) }}
                     </td>
                     <td>{{ number_format((float)$tx->balance_after, 2) }}</td>
                     <td class="text-sm">{{ $tx->description }}</td>
@@ -92,3 +92,4 @@
     </div>
 </div>
 @endsection
+

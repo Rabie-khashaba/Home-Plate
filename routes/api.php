@@ -56,6 +56,8 @@ Route::prefix('general')->group(function () {
 
 Route::post('/payments/paymob/webhook', [PaymobWebhookController::class, 'handle']);
 Route::match(['GET', 'POST'], '/payments/paymob/response', [PaymobResponseController::class, 'handle']);
+// Backward-compatible callback URL (some gateways/old configs use this path)
+Route::match(['GET', 'POST'], '/payment/callback', [PaymobResponseController::class, 'handle']);
 
 
 
@@ -125,6 +127,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('orders')->group(function () {
         Route::post('/', [ApiOrderController::class, 'store']); // app user creates order (includes item_id)
         Route::get('/my', [ApiOrderController::class, 'myOrders']);
+        Route::get('/by-user/{appUserId}', [ApiOrderController::class, 'ordersByUserId']);
+        Route::get('/filter', [ApiOrderController::class, 'filter']);
         Route::get('/search', [ApiOrderController::class, 'search']);
         Route::get('/{id}', [ApiOrderController::class, 'show']);
     });
