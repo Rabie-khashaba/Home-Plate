@@ -64,7 +64,7 @@ class GeneralRequestController extends Controller
         return response()->json([
             'message' => 'Subcategories fetched successfully.',
             'data' => $vendor->subcategories()
-
+               // ->with('category')
                 ->latest()
                 ->get(),
         ]);

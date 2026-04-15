@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\AddressController as ApiAddressController;
 use App\Http\Controllers\Api\ItemController as ApiItemController;
 use App\Http\Controllers\Api\FirebaseNotificationController as ApiFirebaseNotificationController;
 use App\Http\Controllers\Api\VendorRatingController as ApiVendorRatingController;
+use App\Http\Controllers\Api\PaymobWebhookController;
+use App\Http\Controllers\Api\PaymobResponseController;
 
 
 
@@ -51,6 +53,9 @@ Route::prefix('general')->group(function () {
     Route::get('/items/by-subcategory/{subcategoryId}', [ApiItemController::class, 'bySubcategory']);
 
 });
+
+Route::post('/payments/paymob/webhook', [PaymobWebhookController::class, 'handle']);
+Route::match(['GET', 'POST'], '/payments/paymob/response', [PaymobResponseController::class, 'handle']);
 
 
 

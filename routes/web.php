@@ -24,8 +24,10 @@ use App\Http\Controllers\RatingController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\PaymobRedirectController;
 
 
 
@@ -141,6 +143,8 @@ Route::get('/', function () {
     });
 
      Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
+     Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+     Route::get('payments/paymob/response', [PaymobRedirectController::class, 'response'])->name('payments.paymob.response');
      Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
 
      Route::prefix('wallets')->name('wallets.')->group(function () {
